@@ -1,6 +1,10 @@
 node_modules/
 data/master.key
 data/*.db
+data/*.db-shm
+data/*.db-wal
+data/cache/
+data/thumbnails/
 .env
 *.log
 NUL
