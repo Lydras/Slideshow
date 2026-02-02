@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Bash(npm install)",
+      "Bash(timeout 5 node:*)",
+      "Bash(dir /s \"E:\\\\CodeBase\\\\Slideshow\")",
+      "Bash(cd:*)",
+      "Bash(dir:*)",
+      "Bash(npm install:*)",
+      "Bash(timeout 8 node:*)",
+      "Bash(node -e:*)",
+      "Bash(node server.js:*)",
+      "Bash(timeout /t 3 /nobreak)",
+      "Bash(curl:*)",
+      "Bash(node:*)",
+      "Bash(python3:*)",
+      "Bash(base64:*)",
+      "Bash(TOKEN=\"6f44e4b1db140faa07d6e07ca3aa71f0abdbf082bcf856a68455792d2365893d\")",
+      "Bash(echo:*)",
+      "Bash(git init:*)",
+      "Bash(git add:*)",
+      "Bash(git reset:*)"
+    ]
+  }
+}
