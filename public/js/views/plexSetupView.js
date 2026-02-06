@@ -1,4 +1,4 @@
-import { $ } from '../utils/dom.js';
+import { $, escapeHtml } from '../utils/dom.js';
 import { showToast } from '../components/toast.js';
 import { api } from '../api.js';
 
@@ -92,10 +92,4 @@ function renderLibraries(credentialId, serverUrl, libraries) {
       }
     });
   });
-}
-
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
 }

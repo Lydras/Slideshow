@@ -1,5 +1,11 @@
 const { getCredential, storeCredential } = require('./credentialService');
 
+function requireCredential(credentialId) {
+  const cred = getCredential(credentialId);
+  if (!cred) throw new Error('Credential not found');
+  return cred;
+}
+
 // For API/metadata requests (expects JSON responses)
 async function plexFetch(serverUrl, path, token) {
   const url = `${serverUrl.replace(/\/$/, '')}${path}`;
@@ -51,14 +57,12 @@ async function connect(serverUrl, token) {
 }
 
 function getServerUrl(credentialId) {
-  const cred = getCredential(credentialId);
-  if (!cred) throw new Error('Credential not found');
+  const cred = requireCredential(credentialId);
   return cred.decrypted_data.server_url || null;
 }
 
 async function getLibraries(credentialId, serverUrl) {
-  const cred = getCredential(credentialId);
-  if (!cred) throw new Error('Credential not found');
+  const cred = requireCredential(credentialId);
 
   if (!serverUrl) {
     throw new Error('Server URL is required');
@@ -79,8 +83,7 @@ async function getLibraries(credentialId, serverUrl) {
 }
 
 async function getLibraryItems(credentialId, serverUrl, sectionId) {
-  const cred = getCredential(credentialId);
-  if (!cred) throw new Error('Credential not found');
+  const cred = requireCredential(credentialId);
 
   const response = await plexFetch(
     serverUrl,
@@ -98,8 +101,7 @@ async function getLibraryItems(credentialId, serverUrl, sectionId) {
 }
 
 async function listPhotos(credentialId, serverUrl, sourcePath) {
-  const cred = getCredential(credentialId);
-  if (!cred) throw new Error('Credential not found');
+  const cred = requireCredential(credentialId);
   const token = cred.decrypted_data.token;
 
   // Support album-scoped paths: "sectionId/album/ratingKey"
@@ -206,8 +208,7 @@ async function collectPhotosFromContainer(serverUrl, token, ratingKey, extractPh
 }
 
 async function getSectionContents(credentialId, serverUrl, sectionId) {
-  const cred = getCredential(credentialId);
-  if (!cred) throw new Error('Credential not found');
+  const cred = requireCredential(credentialId);
   const token = cred.decrypted_data.token;
 
   const albums = [];
@@ -248,8 +249,7 @@ async function getSectionContents(credentialId, serverUrl, sectionId) {
 }
 
 async function getContainerChildren(credentialId, serverUrl, ratingKey) {
-  const cred = getCredential(credentialId);
-  if (!cred) throw new Error('Credential not found');
+  const cred = requireCredential(credentialId);
   const token = cred.decrypted_data.token;
 
   const response = await plexFetch(serverUrl, `/library/metadata/${ratingKey}/children`, token);
@@ -280,8 +280,7 @@ async function getContainerChildren(credentialId, serverUrl, ratingKey) {
 }
 
 async function downloadPhoto(credentialId, serverUrl, photoKey) {
-  const cred = getCredential(credentialId);
-  if (!cred) throw new Error('Credential not found');
+  const cred = requireCredential(credentialId);
 
   // Use the photo transcode endpoint with large dimensions to get full-quality image.
   // Direct /library/parts/ downloads return 503 on some Plex servers,
@@ -295,8 +294,7 @@ async function downloadPhoto(credentialId, serverUrl, photoKey) {
 }
 
 async function getThumbnail(credentialId, serverUrl, photoKey) {
-  const cred = getCredential(credentialId);
-  if (!cred) throw new Error('Credential not found');
+  const cred = requireCredential(credentialId);
 
   try {
     const transcodeUrl = `/photo/:/transcode?width=200&height=200&minSize=1&url=${encodeURIComponent(photoKey)}`;

@@ -2,7 +2,7 @@ import { api } from '../api.js';
 import { showToast } from '../components/toast.js';
 import { showModal } from '../components/modal.js';
 import { createPhotoPicker } from '../components/photoPicker.js';
-import { $ } from '../utils/dom.js';
+import { $, escapeHtml } from '../utils/dom.js';
 
 let activePlaylistId = '';
 
@@ -384,10 +384,4 @@ function showManageSourcesModal(playlist, allSources) {
       showToast(err.message, 'error');
     }
   });
-}
-
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
 }

@@ -1,4 +1,5 @@
 import { api } from '../api.js';
+import { escapeHtml } from '../utils/dom.js';
 
 export function createLocalBrowser({ onSelect }) {
   const container = document.createElement('div');
@@ -183,10 +184,4 @@ function addLocalBrowserStyles() {
     .lb-info { font-size: 0.85rem; color: var(--text-secondary); }
   `;
   document.head.appendChild(style);
-}
-
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
 }

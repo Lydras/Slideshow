@@ -16,57 +16,7 @@ function getDropboxClient(credentialId) {
   return { dbx, data, credentialId };
 }
 
-async function refreshTokenIfNeeded(credentialId) {
-  const cred = getCredential(credentialId);
-  if (!cred) throw new Error('Credential not found');
-
-  const data = cred.decrypted_data;
-  if (data.expires_at && Date.now() < data.expires_at - 300000) {
-    // Token still valid (5-min buffer)
-    return data;
-  }
-  // If expires_at is missing or token is near expiry, refresh
-
-  if (!data.refresh_token || !data.app_key || !data.app_secret) {
-    throw new Error('Cannot refresh token: missing refresh_token or app credentials');
-  }
-
-  const response = await fetch('https://api.dropboxapi.com/oauth2/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      grant_type: 'refresh_token',
-      refresh_token: data.refresh_token,
-      client_id: data.app_key,
-      client_secret: data.app_secret,
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to refresh Dropbox token');
-  }
-
-  const tokenData = await response.json();
-  const updated = {
-    ...data,
-    access_token: tokenData.access_token,
-    expires_at: Date.now() + tokenData.expires_in * 1000,
-  };
-
-  updateCredential(credentialId, updated);
-  return updated;
-}
-
-// Force a token refresh regardless of expires_at
-async function forceRefresh(credentialId) {
-  const cred = getCredential(credentialId);
-  if (!cred) throw new Error('Credential not found');
-  const data = cred.decrypted_data;
-
-  if (!data.refresh_token || !data.app_key || !data.app_secret) {
-    return; // Can't refresh without these
-  }
-
+async function performTokenRefresh(credentialId, data) {
   const response = await fetch('https://api.dropboxapi.com/oauth2/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -84,11 +34,44 @@ async function forceRefresh(credentialId) {
   }
 
   const tokenData = await response.json();
-  updateCredential(credentialId, {
+  const updated = {
     ...data,
     access_token: tokenData.access_token,
     expires_at: Date.now() + tokenData.expires_in * 1000,
-  });
+  };
+
+  updateCredential(credentialId, updated);
+  return updated;
+}
+
+async function refreshTokenIfNeeded(credentialId) {
+  const cred = getCredential(credentialId);
+  if (!cred) throw new Error('Credential not found');
+
+  const data = cred.decrypted_data;
+  if (data.expires_at && Date.now() < data.expires_at - 300000) {
+    // Token still valid (5-min buffer)
+    return data;
+  }
+
+  if (!data.refresh_token || !data.app_key || !data.app_secret) {
+    throw new Error('Cannot refresh token: missing refresh_token or app credentials');
+  }
+
+  return performTokenRefresh(credentialId, data);
+}
+
+// Force a token refresh regardless of expires_at
+async function forceRefresh(credentialId) {
+  const cred = getCredential(credentialId);
+  if (!cred) throw new Error('Credential not found');
+  const data = cred.decrypted_data;
+
+  if (!data.refresh_token || !data.app_key || !data.app_secret) {
+    return; // Can't refresh without these
+  }
+
+  await performTokenRefresh(credentialId, data);
 }
 
 // Extract a human-readable message from a Dropbox SDK error

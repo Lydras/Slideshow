@@ -3,6 +3,7 @@ import { showToast } from './toast.js';
 import { showModal } from './modal.js';
 import { createLocalBrowser } from './localBrowser.js';
 import { createFolderBrowser } from './folderBrowser.js';
+import { escapeHtml } from '../utils/dom.js';
 import { createPhotoPicker } from './photoPicker.js';
 
 export function openSourceWizard({ onComplete, initialState }) {
@@ -1045,10 +1046,4 @@ function addWizardStyles() {
     }
   `;
   document.head.appendChild(style);
-}
-
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text || '';
-  return div.innerHTML;
 }

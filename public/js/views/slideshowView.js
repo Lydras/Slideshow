@@ -1,5 +1,4 @@
 import { api } from '../api.js';
-import { showToast } from '../components/toast.js';
 import { enterFullscreen, exitFullscreen, isFullscreen, toggleFullscreen } from '../utils/fullscreen.js';
 import { $ } from '../utils/dom.js';
 

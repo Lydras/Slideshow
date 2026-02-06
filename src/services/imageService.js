@@ -72,19 +72,19 @@ function getSlideshowImages(playlistId) {
   return images;
 }
 
+function encodePathSegments(filePath) {
+  return filePath.split('/').map(s => encodeURIComponent(s)).join('/');
+}
+
 function buildImageUrl(image) {
   if (image.source_type === 'local') {
     return `/api/images/serve/local/${image.source_id}/${encodeURIComponent(image.file_path)}`;
   }
   if (image.source_type === 'dropbox') {
-    // Dropbox paths contain forward slashes that must be preserved for Express routing
-    const encodedPath = image.file_path.split('/').map(s => encodeURIComponent(s)).join('/');
-    return `/api/images/serve/dropbox/${image.source_id}${encodedPath}`;
+    return `/api/images/serve/dropbox/${image.source_id}${encodePathSegments(image.file_path)}`;
   }
   if (image.source_type === 'plex') {
-    // Plex paths are API paths like /library/parts/... - preserve slashes for Express routing
-    const encodedPath = image.file_path.split('/').map(s => encodeURIComponent(s)).join('/');
-    return `/api/images/serve/plex/${image.source_id}${encodedPath}`;
+    return `/api/images/serve/plex/${image.source_id}${encodePathSegments(image.file_path)}`;
   }
   return '';
 }

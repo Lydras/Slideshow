@@ -1,4 +1,4 @@
-import { $ } from '../utils/dom.js';
+import { escapeHtml } from '../utils/dom.js';
 import { showToast } from './toast.js';
 import { api } from '../api.js';
 
@@ -97,10 +97,4 @@ function addBrowserStyles() {
     }
   `;
   document.head.appendChild(style);
-}
-
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
 }

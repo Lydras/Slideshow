@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const { getSetting, updateSettings } = require('./settingsService');
+const { PBKDF2_ITERATIONS, PBKDF2_AUTH_KEYLEN, PBKDF2_DIGEST } = require('../config/constants');
 
 // In-memory session store (cleared on server restart)
 const sessions = new Map();
@@ -7,7 +8,7 @@ const SESSION_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 function hashPassword(password) {
   const salt = crypto.randomBytes(32).toString('hex');
-  const hash = crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
+  const hash = crypto.pbkdf2Sync(password, salt, PBKDF2_ITERATIONS, PBKDF2_AUTH_KEYLEN, PBKDF2_DIGEST).toString('hex');
   return `${salt}:${hash}`;
 }
 
@@ -15,7 +16,7 @@ function verifyPassword(password, stored) {
   if (!stored) return false;
   const [salt, hash] = stored.split(':');
   if (!salt || !hash) return false;
-  const candidate = crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
+  const candidate = crypto.pbkdf2Sync(password, salt, PBKDF2_ITERATIONS, PBKDF2_AUTH_KEYLEN, PBKDF2_DIGEST).toString('hex');
   const hashBuf = Buffer.from(hash, 'hex');
   const candidateBuf = Buffer.from(candidate, 'hex');
   if (hashBuf.length !== candidateBuf.length) return false;

@@ -3,7 +3,7 @@ import { showToast } from '../components/toast.js';
 import { showModal } from '../components/modal.js';
 import { createPhotoPicker } from '../components/photoPicker.js';
 import { openSourceWizard } from '../components/sourceWizard.js';
-import { $ } from '../utils/dom.js';
+import { $, escapeHtml } from '../utils/dom.js';
 import { getHashParams, navigateTo } from '../utils/router.js';
 
 export async function renderSourcesView() {
@@ -174,7 +174,6 @@ function showPhotoManagementModal(sourceId, images) {
     saveBtn.textContent = 'Saving...';
     try {
       const selectedIds = picker.getSelectedIds();
-      const allIds = images.map(img => img.id);
 
       // Deselect all first, then select the chosen ones
       await api.updateBulkImageSelection(sourceId, 0);
@@ -324,10 +323,4 @@ function addModalStyles() {
     }
   `;
   document.head.appendChild(style);
-}
-
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
 }
