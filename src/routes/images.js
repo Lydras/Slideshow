@@ -4,6 +4,7 @@ const fs = require('fs');
 const { getSlideshowImages } = require('../services/imageService');
 const { getSource } = require('../services/sourceService');
 const { isSubPath } = require('../utils/pathUtils');
+const { parseIntParam } = require('../utils/parseIntParam');
 const { getThumbnail } = require('../services/thumbnailService');
 const { getFromCache, writeToCache, evictIfNeeded } = require('../services/cacheService');
 
@@ -18,7 +19,8 @@ router.get('/', (req, res) => {
 
 // Serve local images with path traversal protection
 router.get('/serve/local/:sourceId/*', (req, res) => {
-  const sourceId = parseInt(req.params.sourceId, 10);
+  const sourceId = parseIntParam(req, res, 'sourceId');
+  if (sourceId === null) return;
   const source = getSource(sourceId);
 
   if (!source || source.type !== 'local') {
@@ -43,7 +45,8 @@ router.get('/serve/local/:sourceId/*', (req, res) => {
 // Serve dropbox images (proxy through server, with disk cache)
 router.get('/serve/dropbox/:sourceId/*', async (req, res, next) => {
   try {
-    const sourceId = parseInt(req.params.sourceId, 10);
+    const sourceId = parseIntParam(req, res, 'sourceId');
+    if (sourceId === null) return;
     const source = getSource(sourceId);
 
     if (!source || source.type !== 'dropbox') {
@@ -87,7 +90,8 @@ router.get('/serve/dropbox/:sourceId/*', async (req, res, next) => {
 // Serve plex images (proxy through server, with disk cache)
 router.get('/serve/plex/:sourceId/*', async (req, res, next) => {
   try {
-    const sourceId = parseInt(req.params.sourceId, 10);
+    const sourceId = parseIntParam(req, res, 'sourceId');
+    if (sourceId === null) return;
     const source = getSource(sourceId);
 
     if (!source || source.type !== 'plex') {
@@ -127,8 +131,10 @@ router.get('/serve/plex/:sourceId/*', async (req, res, next) => {
 // Serve thumbnail for an image
 router.get('/thumbnail/:sourceId/:imageId', async (req, res, next) => {
   try {
-    const sourceId = parseInt(req.params.sourceId, 10);
-    const imageId = parseInt(req.params.imageId, 10);
+    const sourceId = parseIntParam(req, res, 'sourceId');
+    if (sourceId === null) return;
+    const imageId = parseIntParam(req, res, 'imageId');
+    if (imageId === null) return;
 
     const result = await getThumbnail(sourceId, imageId);
     if (!result) {

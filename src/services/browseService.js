@@ -35,8 +35,8 @@ function listDrives() {
         path: drivePath,
         type: 'directory',
       });
-    } catch {
-      // Drive not available
+    } catch (err) {
+      // Drive not available — expected for unmounted drives
     }
   }
   return drives;

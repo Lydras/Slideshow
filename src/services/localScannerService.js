@@ -9,7 +9,8 @@ function scanDirectory(dirPath, includeSubfolders = true) {
     let entries;
     try {
       entries = fs.readdirSync(currentPath, { withFileTypes: true });
-    } catch {
+    } catch (err) {
+      console.warn(`Skipping directory ${currentPath}:`, err.message);
       return;
     }
 

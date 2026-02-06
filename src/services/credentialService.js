@@ -10,10 +10,15 @@ function getCredential(id) {
   const db = getDb();
   const row = db.prepare('SELECT * FROM credentials WHERE id = ?').get(id);
   if (!row) return null;
-  return {
-    ...row,
-    decrypted_data: JSON.parse(decrypt(row.encrypted_data)),
-  };
+  try {
+    return {
+      ...row,
+      decrypted_data: JSON.parse(decrypt(row.encrypted_data)),
+    };
+  } catch (err) {
+    console.error(`Failed to decrypt credential ${id}:`, err.message);
+    return null;
+  }
 }
 
 function storeCredential(service, label, data) {

@@ -17,7 +17,8 @@ export async function renderSlideshowView() {
 
   try {
     images = await api.getImages(settings.active_playlist_id || null);
-  } catch {
+  } catch (err) {
+    console.warn('Failed to load slideshow images:', err.message);
     images = [];
   }
 

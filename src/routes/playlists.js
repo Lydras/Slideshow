@@ -1,6 +1,7 @@
 const { Router } = require('express');
 const { body } = require('express-validator');
 const { validate } = require('../middleware/validation');
+const { parseIntParam } = require('../utils/parseIntParam');
 const {
   listPlaylists,
   getPlaylist,
@@ -21,7 +22,9 @@ router.get('/', (req, res) => {
 });
 
 router.get('/:id', (req, res) => {
-  const playlist = getPlaylist(parseInt(req.params.id, 10));
+  const id = parseIntParam(req, res, 'id');
+  if (id === null) return;
+  const playlist = getPlaylist(id);
   if (!playlist) return res.status(404).json({ error: { message: 'Playlist not found' } });
   res.json(playlist);
 });
@@ -55,7 +58,9 @@ router.put(
   ],
   (req, res) => {
     try {
-      const playlist = updatePlaylist(parseInt(req.params.id, 10), req.body);
+      const id = parseIntParam(req, res, 'id');
+      if (id === null) return;
+      const playlist = updatePlaylist(id, req.body);
       if (!playlist) return res.status(404).json({ error: { message: 'Playlist not found' } });
       res.json(playlist);
     } catch (err) {
@@ -68,7 +73,8 @@ router.put(
 );
 
 router.delete('/:id', (req, res) => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseIntParam(req, res, 'id');
+  if (id === null) return;
   const playlist = getPlaylist(id);
   if (!playlist) return res.status(404).json({ error: { message: 'Playlist not found' } });
   deletePlaylist(id);
@@ -83,7 +89,8 @@ router.post(
     validate,
   ],
   (req, res) => {
-    const id = parseInt(req.params.id, 10);
+    const id = parseIntParam(req, res, 'id');
+    if (id === null) return;
     const playlist = getPlaylist(id);
     if (!playlist) return res.status(404).json({ error: { message: 'Playlist not found' } });
     const updated = addSource(id, req.body.source_id, req.body.sort_order || 0);
@@ -92,7 +99,8 @@ router.post(
 );
 
 router.delete('/:id/sources', (req, res) => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseIntParam(req, res, 'id');
+  if (id === null) return;
   const playlist = getPlaylist(id);
   if (!playlist) return res.status(404).json({ error: { message: 'Playlist not found' } });
   if (!req.body.source_id) {
@@ -104,14 +112,16 @@ router.delete('/:id/sources', (req, res) => {
 
 // Playlist image selection endpoints
 router.get('/:id/images', (req, res) => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseIntParam(req, res, 'id');
+  if (id === null) return;
   const playlist = getPlaylist(id);
   if (!playlist) return res.status(404).json({ error: { message: 'Playlist not found' } });
   res.json(getPlaylistImages(id));
 });
 
 router.put('/:id/images', (req, res) => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseIntParam(req, res, 'id');
+  if (id === null) return;
   const playlist = getPlaylist(id);
   if (!playlist) return res.status(404).json({ error: { message: 'Playlist not found' } });
 
@@ -125,7 +135,8 @@ router.put('/:id/images', (req, res) => {
 });
 
 router.delete('/:id/images', (req, res) => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseIntParam(req, res, 'id');
+  if (id === null) return;
   const playlist = getPlaylist(id);
   if (!playlist) return res.status(404).json({ error: { message: 'Playlist not found' } });
   clearPlaylistImages(id);

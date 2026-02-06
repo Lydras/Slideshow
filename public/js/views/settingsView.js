@@ -94,7 +94,7 @@ export async function renderSettingsView() {
       const stats = await api.getCacheStats();
       const el = $('#cache-stats');
       if (el) el.textContent = `${stats.files} files, ${stats.sizeMB} MB used (max ${stats.maxMB} MB)`;
-    } catch {}
+    } catch (err) { console.warn('Failed to load cache stats:', err.message); }
   }
   loadCacheStats();
 

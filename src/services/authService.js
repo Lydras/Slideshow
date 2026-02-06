@@ -16,7 +16,10 @@ function verifyPassword(password, stored) {
   const [salt, hash] = stored.split(':');
   if (!salt || !hash) return false;
   const candidate = crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
-  return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(candidate, 'hex'));
+  const hashBuf = Buffer.from(hash, 'hex');
+  const candidateBuf = Buffer.from(candidate, 'hex');
+  if (hashBuf.length !== candidateBuf.length) return false;
+  return crypto.timingSafeEqual(hashBuf, candidateBuf);
 }
 
 function isAuthEnabled() {

@@ -25,7 +25,7 @@ function getFromCache(sourceId, filePath) {
     if (fs.existsSync(cachePath)) {
       // Update mtime for LRU eviction
       const now = new Date();
-      try { fs.utimesSync(cachePath, now, now); } catch {}
+      try { fs.utimesSync(cachePath, now, now); } catch (err) { console.warn('Cache mtime update failed:', err.message); }
       return cachePath;
     }
   }
@@ -72,7 +72,7 @@ function getCacheStats() {
     try {
       const stat = fs.statSync(path.join(CACHE_DIR, file));
       totalSize += stat.size;
-    } catch {}
+    } catch (err) { console.warn('Cache stat failed:', err.message); }
   }
 
   return {
@@ -93,7 +93,7 @@ function clearCache() {
     try {
       fs.unlinkSync(path.join(CACHE_DIR, file));
       deleted++;
-    } catch {}
+    } catch (err) { console.warn('Cache delete failed:', err.message); }
   }
 
   return { deleted };
@@ -110,7 +110,8 @@ function evictIfNeeded() {
       try {
         const stat = fs.statSync(filePath);
         return { name, path: filePath, size: stat.size, mtime: stat.mtimeMs };
-      } catch {
+      } catch (err) {
+        console.warn('Cache eviction stat failed:', err.message);
         return null;
       }
     })
@@ -125,7 +126,7 @@ function evictIfNeeded() {
     try {
       fs.unlinkSync(file.path);
       currentSize -= file.size;
-    } catch {}
+    } catch (err) { console.warn('Cache eviction delete failed:', err.message); }
   }
 }
 

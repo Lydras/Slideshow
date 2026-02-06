@@ -2,6 +2,7 @@ const { Router } = require('express');
 const { query, body } = require('express-validator');
 const { validate } = require('../middleware/validation');
 const { authRateLimit } = require('../middleware/security');
+const { parseIntParam } = require('../utils/parseIntParam');
 const dropboxService = require('../services/dropboxService');
 
 const router = Router();
@@ -51,8 +52,8 @@ router.get('/callback', authRateLimit, async (req, res, next) => {
         const decoded = JSON.parse(Buffer.from(state, 'base64url').toString());
         appKey = decoded.app_key;
         appSecret = decoded.app_secret;
-      } catch {
-        // Fall back to query params for backwards compat
+      } catch (err) {
+        console.warn('Failed to decode OAuth state, falling back to query params:', err.message);
       }
     }
     // Also accept direct query params as fallback
@@ -78,7 +79,8 @@ router.get('/callback', authRateLimit, async (req, res, next) => {
 // List folders for a credential
 router.get('/:credentialId/folders', async (req, res, next) => {
   try {
-    const credentialId = parseInt(req.params.credentialId, 10);
+    const credentialId = parseIntParam(req, res, 'credentialId');
+    if (credentialId === null) return;
     const folderPath = req.query.path || '';
     const folders = await dropboxService.listFolders(credentialId, folderPath);
     res.json(folders);

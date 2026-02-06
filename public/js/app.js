@@ -17,8 +17,8 @@ function withAuth(viewFn) {
       if (status.enabled && !status.authenticated) {
         return renderLoginView();
       }
-    } catch {
-      // If auth check fails, try to render anyway
+    } catch (err) {
+      console.warn('Auth check failed, rendering anyway:', err.message);
     }
     return viewFn();
   };

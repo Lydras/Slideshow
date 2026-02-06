@@ -2,6 +2,7 @@ const { Router } = require('express');
 const { body } = require('express-validator');
 const { validate } = require('../middleware/validation');
 const { authRateLimit } = require('../middleware/security');
+const { parseIntParam } = require('../utils/parseIntParam');
 const plexService = require('../services/plexService');
 
 const router = Router();
@@ -28,7 +29,8 @@ router.post(
 // Get server URL stored in credential
 router.get('/:credentialId/info', async (req, res, next) => {
   try {
-    const credentialId = parseInt(req.params.credentialId, 10);
+    const credentialId = parseIntParam(req, res, 'credentialId');
+    if (credentialId === null) return;
     const serverUrl = plexService.getServerUrl(credentialId);
     res.json({ server_url: serverUrl });
   } catch (err) {
@@ -44,7 +46,7 @@ function resolveServerUrl(credentialId, queryUrl) {
   try {
     const storedUrl = plexService.getServerUrl(credentialId);
     if (storedUrl) return storedUrl;
-  } catch { /* ignore */ }
+  } catch (err) { console.warn('Failed to resolve server URL from credential:', err.message); }
 
   // Fall back to existing sources
   const { getDb } = require('../db/connection');
@@ -58,7 +60,8 @@ function resolveServerUrl(credentialId, queryUrl) {
 // List photo libraries for a credential
 router.get('/:credentialId/libraries', async (req, res, next) => {
   try {
-    const credentialId = parseInt(req.params.credentialId, 10);
+    const credentialId = parseIntParam(req, res, 'credentialId');
+    if (credentialId === null) return;
     const url = resolveServerUrl(credentialId, req.query.server_url);
 
     if (!url) {
@@ -75,7 +78,8 @@ router.get('/:credentialId/libraries', async (req, res, next) => {
 // Get albums and photos at section top level
 router.get('/:credentialId/libraries/:sectionId/contents', async (req, res, next) => {
   try {
-    const credentialId = parseInt(req.params.credentialId, 10);
+    const credentialId = parseIntParam(req, res, 'credentialId');
+    if (credentialId === null) return;
     const url = resolveServerUrl(credentialId, req.query.server_url);
 
     if (!url) {
@@ -92,7 +96,8 @@ router.get('/:credentialId/libraries/:sectionId/contents', async (req, res, next
 // Get children of an album/container
 router.get('/:credentialId/browse/:ratingKey', async (req, res, next) => {
   try {
-    const credentialId = parseInt(req.params.credentialId, 10);
+    const credentialId = parseIntParam(req, res, 'credentialId');
+    if (credentialId === null) return;
     const url = resolveServerUrl(credentialId, req.query.server_url);
 
     if (!url) {
@@ -109,7 +114,8 @@ router.get('/:credentialId/browse/:ratingKey', async (req, res, next) => {
 // Proxy Plex thumbnails
 router.get('/:credentialId/thumb', async (req, res, next) => {
   try {
-    const credentialId = parseInt(req.params.credentialId, 10);
+    const credentialId = parseIntParam(req, res, 'credentialId');
+    if (credentialId === null) return;
     const url = resolveServerUrl(credentialId, req.query.server_url);
 
     if (!url) {
@@ -137,7 +143,8 @@ router.get('/:credentialId/thumb', async (req, res, next) => {
 // List items in a photo library
 router.get('/:credentialId/libraries/:sectionId/items', async (req, res, next) => {
   try {
-    const credentialId = parseInt(req.params.credentialId, 10);
+    const credentialId = parseIntParam(req, res, 'credentialId');
+    if (credentialId === null) return;
     const url = resolveServerUrl(credentialId, req.query.server_url);
 
     if (!url) {

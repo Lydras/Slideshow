@@ -2,6 +2,7 @@ const { Router } = require('express');
 const { body, param } = require('express-validator');
 const { validate } = require('../middleware/validation');
 const { SOURCE_TYPES } = require('../config/constants');
+const { parseIntParam } = require('../utils/parseIntParam');
 const {
   listSources,
   getSource,
@@ -21,7 +22,9 @@ router.get('/', (req, res) => {
 });
 
 router.get('/:id', (req, res) => {
-  const source = getSource(parseInt(req.params.id, 10));
+  const id = parseIntParam(req, res, 'id');
+  if (id === null) return;
+  const source = getSource(id);
   if (!source) return res.status(404).json({ error: { message: 'Source not found' } });
   res.json(source);
 });
@@ -55,14 +58,17 @@ router.put(
     validate,
   ],
   (req, res) => {
-    const source = updateSource(parseInt(req.params.id, 10), req.body);
+    const id = parseIntParam(req, res, 'id');
+    if (id === null) return;
+    const source = updateSource(id, req.body);
     if (!source) return res.status(404).json({ error: { message: 'Source not found' } });
     res.json(source);
   }
 );
 
 router.delete('/:id', (req, res) => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseIntParam(req, res, 'id');
+  if (id === null) return;
   const source = getSource(id);
   if (!source) return res.status(404).json({ error: { message: 'Source not found' } });
   deleteSource(id);
@@ -71,7 +77,8 @@ router.delete('/:id', (req, res) => {
 
 router.post('/:id/scan', async (req, res, next) => {
   try {
-    const id = parseInt(req.params.id, 10);
+    const id = parseIntParam(req, res, 'id');
+    if (id === null) return;
     const result = await scanSource(id);
     if (!result) return res.status(404).json({ error: { message: 'Source not found' } });
     res.json({ message: `Scan complete. Found ${result.count} images.`, count: result.count });
@@ -81,7 +88,8 @@ router.post('/:id/scan', async (req, res, next) => {
 });
 
 router.get('/:id/images', (req, res) => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseIntParam(req, res, 'id');
+  if (id === null) return;
   const source = getSource(id);
   if (!source) return res.status(404).json({ error: { message: 'Source not found' } });
   res.json(getSourceImages(id));
@@ -89,7 +97,8 @@ router.get('/:id/images', (req, res) => {
 
 // Bulk update image selection for a source
 router.put('/:id/images/selection', (req, res) => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseIntParam(req, res, 'id');
+  if (id === null) return;
   const source = getSource(id);
   if (!source) return res.status(404).json({ error: { message: 'Source not found' } });
 
@@ -104,7 +113,8 @@ router.put('/:id/images/selection', (req, res) => {
 
 // Get image counts for a source
 router.get('/:id/images/counts', (req, res) => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseIntParam(req, res, 'id');
+  if (id === null) return;
   const source = getSource(id);
   if (!source) return res.status(404).json({ error: { message: 'Source not found' } });
   res.json(getSourceImageCounts(id));

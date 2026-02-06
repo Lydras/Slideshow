@@ -1,6 +1,7 @@
 const { Router } = require('express');
 const { listCredentials, deleteCredential } = require('../services/credentialService');
 const { getDb } = require('../db/connection');
+const { parseIntParam } = require('../utils/parseIntParam');
 
 const router = Router();
 
@@ -10,10 +11,8 @@ router.get('/', (req, res) => {
 });
 
 router.delete('/:id', (req, res) => {
-  const id = parseInt(req.params.id, 10);
-  if (isNaN(id)) {
-    return res.status(400).json({ error: { message: 'Invalid credential ID' } });
-  }
+  const id = parseIntParam(req, res, 'id');
+  if (id === null) return;
 
   // Check if any sources reference this credential
   const db = getDb();

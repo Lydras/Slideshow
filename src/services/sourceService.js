@@ -64,9 +64,6 @@ async function scanSource(id) {
     selectionMap.set(img.file_path, img.selected);
   }
 
-  // Clear existing cache for this source
-  db.prepare('DELETE FROM image_cache WHERE source_id = ?').run(id);
-
   let images = [];
 
   if (source.type === 'local') {
@@ -79,19 +76,19 @@ async function scanSource(id) {
     images = await plexService.listPhotos(source.credential_id, source.plex_server_url, source.path);
   }
 
-  if (images.length > 0) {
-    const insert = db.prepare(
-      'INSERT INTO image_cache (source_id, file_path, file_name, selected) VALUES (?, ?, ?, ?)'
-    );
-    const transaction = db.transaction(() => {
-      for (const img of images) {
-        // Preserve previous selection state; new images default to selected
-        const selected = selectionMap.has(img.file_path) ? selectionMap.get(img.file_path) : 1;
-        insert.run(id, img.file_path, img.file_name, selected);
-      }
-    });
-    transaction();
-  }
+  // Clear and re-insert inside a single transaction so a failed scan doesn't lose data
+  const insert = db.prepare(
+    'INSERT INTO image_cache (source_id, file_path, file_name, selected) VALUES (?, ?, ?, ?)'
+  );
+  const transaction = db.transaction(() => {
+    db.prepare('DELETE FROM image_cache WHERE source_id = ?').run(id);
+    for (const img of images) {
+      // Preserve previous selection state; new images default to selected
+      const selected = selectionMap.has(img.file_path) ? selectionMap.get(img.file_path) : 1;
+      insert.run(id, img.file_path, img.file_name, selected);
+    }
+  });
+  transaction();
 
   return { count: images.length };
 }

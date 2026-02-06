@@ -52,6 +52,11 @@ function encrypt(plaintext) {
 function decrypt(base64Data) {
   const packed = Buffer.from(base64Data, 'base64');
 
+  const MIN_LENGTH = SALT_LENGTH + IV_LENGTH + AUTH_TAG_LENGTH;
+  if (packed.length < MIN_LENGTH) {
+    throw new Error(`Invalid encrypted data: expected at least ${MIN_LENGTH} bytes, got ${packed.length}`);
+  }
+
   const salt = packed.subarray(0, SALT_LENGTH);
   const iv = packed.subarray(SALT_LENGTH, SALT_LENGTH + IV_LENGTH);
   const authTag = packed.subarray(SALT_LENGTH + IV_LENGTH, SALT_LENGTH + IV_LENGTH + AUTH_TAG_LENGTH);
