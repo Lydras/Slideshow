@@ -89,4 +89,38 @@ router.get('/:credentialId/folders', async (req, res, next) => {
   }
 });
 
+// List folders + images for a credential (single directory level)
+router.get('/:credentialId/contents', async (req, res, next) => {
+  try {
+    const credentialId = parseIntParam(req, res, 'credentialId');
+    if (credentialId === null) return;
+    const folderPath = req.query.path || '';
+    const contents = await dropboxService.listContents(credentialId, folderPath);
+    res.json(contents);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Proxy thumbnail for a Dropbox file
+router.get('/:credentialId/thumb', async (req, res, next) => {
+  try {
+    const credentialId = parseIntParam(req, res, 'credentialId');
+    if (credentialId === null) return;
+    const filePath = req.query.path;
+    if (!filePath) {
+      return res.status(400).json({ error: { message: 'path query parameter is required' } });
+    }
+    const thumbData = await dropboxService.getThumbnail(credentialId, filePath);
+    if (!thumbData) {
+      return res.status(404).json({ error: { message: 'Thumbnail not available' } });
+    }
+    res.set('Content-Type', 'image/jpeg');
+    res.set('Cache-Control', 'public, max-age=3600');
+    res.send(Buffer.from(thumbData));
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;

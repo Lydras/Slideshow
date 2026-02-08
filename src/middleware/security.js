@@ -7,6 +7,7 @@ const {
 } = require('../config/constants');
 
 const helmetMiddleware = helmet({
+  crossOriginEmbedderPolicy: false,
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],

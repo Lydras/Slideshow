@@ -106,6 +106,13 @@ export const api = {
     request(`/dropbox/auth-url?app_key=${encodeURIComponent(appKey)}&app_secret=${encodeURIComponent(appSecret)}`),
   getDropboxFolders: (credentialId, path = '') =>
     request(`/dropbox/${credentialId}/folders${path ? `?path=${encodeURIComponent(path)}` : ''}`),
+  getDropboxContents: (credentialId, path = '') =>
+    request(`/dropbox/${credentialId}/contents${path ? `?path=${encodeURIComponent(path)}` : ''}`),
+  getDropboxThumbnailUrl: (credentialId, filePath) => {
+    const params = new URLSearchParams();
+    params.set('path', filePath);
+    return `${BASE_URL}/dropbox/${credentialId}/thumb?${params.toString()}`;
+  },
 
   // Plex
   connectPlex: (data) => request('/plex/connect', { method: 'POST', body: data }),

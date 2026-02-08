@@ -2,7 +2,6 @@ import { api } from '../api.js';
 import { showToast } from './toast.js';
 import { showModal } from './modal.js';
 import { createLocalBrowser } from './localBrowser.js';
-import { createFolderBrowser } from './folderBrowser.js';
 import { escapeHtml } from '../utils/dom.js';
 import { createPhotoPicker } from './photoPicker.js';
 
@@ -287,36 +286,189 @@ export function openSourceWizard({ onComplete, initialState }) {
     });
   }
 
-  function renderDropboxBrowse(container) {
+  async function renderDropboxBrowse(container) {
     const wrapper = document.createElement('div');
     wrapper.className = 'wizard-step';
-    wrapper.innerHTML = '<h3>Select Dropbox Folder</h3>';
-
-    const subfoldersDiv = document.createElement('div');
-    subfoldersDiv.className = 'form-group';
-    subfoldersDiv.innerHTML = `
-      <div class="checkbox-group">
-        <input type="checkbox" id="wiz-subfolders" ${state.includeSubfolders ? 'checked' : ''}>
-        <label for="wiz-subfolders" style="margin:0">Include subfolders</label>
-      </div>
-    `;
-    wrapper.appendChild(subfoldersDiv);
-
-    const browser = createFolderBrowser({
-      credentialId: state.credentialId,
-      service: 'dropbox',
-      onSelect: (selectedPath) => {
-        state.selectedPath = selectedPath || '/';
-        state.includeSubfolders = wrapper.querySelector('#wiz-subfolders').checked;
-        state.sourceName = selectedPath.split('/').filter(Boolean).pop() || 'Dropbox Source';
-        state.step = 4;
-        renderStep();
-      },
-    });
-
-    wrapper.appendChild(browser);
-    appendNavButtons(wrapper, { back: 2 });
     container.appendChild(wrapper);
+
+    const PHOTO_PREVIEW_LIMIT = 60;
+    const currentPath = []; // stack of { name, path }
+
+    function selectFolder() {
+      const folderPath = currentPath.length > 0 ? currentPath[currentPath.length - 1].path : '';
+      state.selectedPath = folderPath || '/';
+      state.includeSubfolders = wrapper.querySelector('#dbx-subfolders')?.checked ?? state.includeSubfolders;
+      state.sourceName = currentPath.length > 0
+        ? currentPath[currentPath.length - 1].name
+        : 'Dropbox Source';
+      state.step = 4;
+      renderStep();
+    }
+
+    async function loadContents() {
+      wrapper.innerHTML = '';
+
+      // Header
+      const header = document.createElement('h3');
+      header.textContent = 'Select Dropbox Folder';
+      wrapper.appendChild(header);
+
+      // Breadcrumb bar
+      const breadcrumbBar = document.createElement('div');
+      breadcrumbBar.className = 'plex-breadcrumbs';
+
+      const rootCrumb = document.createElement('span');
+      rootCrumb.className = 'plex-breadcrumb';
+      rootCrumb.textContent = 'Dropbox';
+      if (currentPath.length > 0) {
+        rootCrumb.classList.add('clickable');
+        rootCrumb.addEventListener('click', () => {
+          currentPath.length = 0;
+          loadContents();
+        });
+      }
+      breadcrumbBar.appendChild(rootCrumb);
+
+      for (let i = 0; i < currentPath.length; i++) {
+        const sep = document.createElement('span');
+        sep.className = 'plex-breadcrumb-sep';
+        sep.textContent = ' \u203A ';
+        breadcrumbBar.appendChild(sep);
+
+        const crumb = document.createElement('span');
+        crumb.className = 'plex-breadcrumb';
+        crumb.textContent = currentPath[i].name;
+        if (i < currentPath.length - 1) {
+          crumb.classList.add('clickable');
+          const depth = i + 1;
+          crumb.addEventListener('click', () => {
+            currentPath.length = depth;
+            loadContents();
+          });
+        }
+        breadcrumbBar.appendChild(crumb);
+      }
+
+      wrapper.appendChild(breadcrumbBar);
+
+      // Action bar
+      const actionBar = document.createElement('div');
+      actionBar.className = 'wizard-btn-row';
+      actionBar.style.marginBottom = '1rem';
+
+      const selectBtn = document.createElement('button');
+      selectBtn.className = 'btn-primary btn-small';
+      selectBtn.textContent = currentPath.length > 0
+        ? `Select \u201C${currentPath[currentPath.length - 1].name}\u201D`
+        : 'Select Root Folder';
+      selectBtn.addEventListener('click', () => selectFolder());
+      actionBar.appendChild(selectBtn);
+
+      const subfoldersLabel = document.createElement('label');
+      subfoldersLabel.style.cssText = 'display:flex;align-items:center;gap:0.4rem;margin:0;font-size:0.85rem;color:var(--text-secondary)';
+      subfoldersLabel.innerHTML = `<input type="checkbox" id="dbx-subfolders" ${state.includeSubfolders ? 'checked' : ''}> Include subfolders`;
+      actionBar.appendChild(subfoldersLabel);
+
+      wrapper.appendChild(actionBar);
+
+      // Loading indicator
+      const loadingDiv = document.createElement('div');
+      loadingDiv.textContent = 'Loading...';
+      loadingDiv.style.cssText = 'color:var(--text-secondary);padding:1rem 0';
+      wrapper.appendChild(loadingDiv);
+
+      // Back button at bottom
+      const nav = document.createElement('div');
+      nav.className = 'wizard-nav';
+      nav.style.marginTop = '1.25rem';
+
+      const backBtn = document.createElement('button');
+      backBtn.className = 'btn-secondary btn-small';
+      backBtn.textContent = 'Back';
+      backBtn.addEventListener('click', () => {
+        if (currentPath.length > 0) {
+          currentPath.pop();
+          loadContents();
+        } else {
+          state.step = 2;
+          renderStep();
+        }
+      });
+      nav.appendChild(backBtn);
+      wrapper.appendChild(nav);
+
+      // Load data
+      try {
+        const folderPath = currentPath.length > 0 ? currentPath[currentPath.length - 1].path : '';
+        const data = await api.getDropboxContents(state.credentialId, folderPath);
+
+        loadingDiv.remove();
+
+        // Show folders
+        if (data.folders.length > 0) {
+          const foldersSection = document.createElement('div');
+          foldersSection.innerHTML = `<div style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:0.5rem">${data.folders.length} folder${data.folders.length !== 1 ? 's' : ''}</div>`;
+
+          const folderGrid = document.createElement('div');
+          folderGrid.className = 'plex-album-grid';
+
+          for (const folder of data.folders) {
+            const card = document.createElement('div');
+            card.className = 'plex-album-card';
+            card.innerHTML = `
+              <div class="plex-album-thumb plex-album-no-thumb" style="display:flex;align-items:center;justify-content:center;font-size:2rem">&#128193;</div>
+              <div class="plex-album-info">
+                <div class="plex-album-title">${escapeHtml(folder.name)}</div>
+              </div>
+            `;
+            card.addEventListener('click', () => {
+              currentPath.push({ name: folder.name, path: folder.path });
+              loadContents();
+            });
+            folderGrid.appendChild(card);
+          }
+
+          foldersSection.appendChild(folderGrid);
+          wrapper.insertBefore(foldersSection, nav);
+        }
+
+        // Show image thumbnails
+        if (data.images.length > 0) {
+          const photosSection = document.createElement('div');
+          const showing = Math.min(data.images.length, PHOTO_PREVIEW_LIMIT);
+          const label = data.images.length > PHOTO_PREVIEW_LIMIT
+            ? `${data.images.length} images (showing first ${showing})`
+            : `${data.images.length} image${data.images.length !== 1 ? 's' : ''}`;
+          photosSection.innerHTML = `<div style="color:var(--text-secondary);font-size:0.85rem;margin:0.75rem 0 0.5rem">${label}</div>`;
+
+          const photoGrid = document.createElement('div');
+          photoGrid.className = 'plex-photo-grid';
+
+          for (const image of data.images.slice(0, PHOTO_PREVIEW_LIMIT)) {
+            const cell = document.createElement('div');
+            cell.className = 'plex-photo-cell';
+            const thumbUrl = api.getDropboxThumbnailUrl(state.credentialId, image.path);
+            cell.innerHTML = `<img src="${escapeHtml(thumbUrl)}" loading="lazy" alt="${escapeHtml(image.name)}">`;
+            photoGrid.appendChild(cell);
+          }
+
+          photosSection.appendChild(photoGrid);
+          wrapper.insertBefore(photosSection, nav);
+        }
+
+        if (data.folders.length === 0 && data.images.length === 0) {
+          const emptyMsg = document.createElement('div');
+          emptyMsg.textContent = 'This folder is empty.';
+          emptyMsg.style.cssText = 'color:var(--text-secondary);padding:1rem 0';
+          wrapper.insertBefore(emptyMsg, nav);
+        }
+
+      } catch (err) {
+        loadingDiv.innerHTML = `<span style="color:var(--error)">Error: ${escapeHtml(err.message)}</span>`;
+      }
+    }
+
+    loadContents();
   }
 
   // ---- Plex flow ----

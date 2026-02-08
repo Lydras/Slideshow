@@ -227,6 +227,46 @@ async function listImages(credentialId, folderPath, includeSubfolders = true) {
   return images;
 }
 
+async function listContents(credentialId, folderPath = '') {
+  return withRetry(credentialId, async () => {
+    const { dbx } = getDropboxClient(credentialId);
+    const imageExts = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg', '.tiff', '.tif', '.avif'];
+    const folders = [];
+    const images = [];
+
+    let response = await dbx.filesListFolder({ path: folderPath || '' });
+
+    for (const e of response.result.entries) {
+      if (e['.tag'] === 'folder') {
+        folders.push({ name: e.name, path: e.path_lower });
+      } else if (e['.tag'] === 'file') {
+        const ext = e.name.slice(e.name.lastIndexOf('.')).toLowerCase();
+        if (imageExts.includes(ext)) {
+          images.push({ name: e.name, path: e.path_lower });
+        }
+      }
+    }
+
+    while (response.result.has_more) {
+      response = await dbx.filesListFolderContinue({ cursor: response.result.cursor });
+      for (const e of response.result.entries) {
+        if (e['.tag'] === 'folder') {
+          folders.push({ name: e.name, path: e.path_lower });
+        } else if (e['.tag'] === 'file') {
+          const ext = e.name.slice(e.name.lastIndexOf('.')).toLowerCase();
+          if (imageExts.includes(ext)) {
+            images.push({ name: e.name, path: e.path_lower });
+          }
+        }
+      }
+    }
+
+    folders.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+    images.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+    return { folders, images };
+  });
+}
+
 async function downloadFile(credentialId, filePath) {
   return withRetry(credentialId, async () => {
     const { dbx } = getDropboxClient(credentialId);
@@ -256,6 +296,7 @@ module.exports = {
   getAuthUrl,
   exchangeCodeForToken,
   listFolders,
+  listContents,
   listImages,
   downloadFile,
   getThumbnail,
