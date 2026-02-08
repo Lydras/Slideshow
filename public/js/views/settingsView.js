@@ -182,12 +182,25 @@ export async function renderSettingsView() {
   const form = $('#settings-form');
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
+
+    const interval = parseInt(form.interval_seconds.value, 10);
+    if (isNaN(interval) || interval < 1 || interval > 300) {
+      showToast('Slide interval must be between 1 and 300 seconds', 'error');
+      return;
+    }
+
+    const duration = parseInt(form.transition_duration_ms.value, 10);
+    if (isNaN(duration) || duration < 0 || duration > 5000) {
+      showToast('Transition duration must be between 0 and 5000ms', 'error');
+      return;
+    }
+
     try {
       await api.updateSettings({
-        interval_seconds: form.interval_seconds.value,
+        interval_seconds: interval,
         order: form.order.value,
         transition: form.transition.value,
-        transition_duration_ms: form.transition_duration_ms.value,
+        transition_duration_ms: duration,
         fullscreen_on_start: form.fullscreen_on_start.checked ? 'true' : 'false',
         include_subfolders: form.include_subfolders.checked ? 'true' : 'false',
       });

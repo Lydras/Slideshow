@@ -8,7 +8,6 @@ export function createPhotoPicker({ images, onSelectionChange }) {
   const container = document.createElement('div');
   container.className = 'photo-picker';
 
-  addPickerStyles();
   render();
 
   function render() {
@@ -148,60 +147,3 @@ export function createPhotoPicker({ images, onSelectionChange }) {
   return { element: container, getSelectedIds };
 }
 
-function addPickerStyles() {
-  if (document.getElementById('photo-picker-styles')) return;
-  const style = document.createElement('style');
-  style.id = 'photo-picker-styles';
-  style.textContent = `
-    .photo-picker-toolbar {
-      display: flex; justify-content: space-between; align-items: center;
-      padding: 0.6rem 0; margin-bottom: 0.75rem;
-      border-bottom: 1px solid var(--glass-border);
-    }
-    .photo-picker-counter {
-      font-size: 0.85rem; color: var(--text-secondary); font-weight: 500;
-    }
-    .photo-picker-btn-group {
-      display: flex; gap: 0.5rem;
-    }
-    .photo-picker-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-      gap: 0.6rem;
-      max-height: 55vh;
-      overflow-y: auto;
-      padding: 0.25rem;
-    }
-    .photo-picker-cell {
-      position: relative; border-radius: 10px;
-      border: 2px solid transparent;
-      overflow: hidden; cursor: pointer;
-      background: rgba(255, 255, 255, 0.03);
-      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-    .photo-picker-cell:hover {
-      border-color: var(--glass-border-light);
-      transform: scale(1.02);
-    }
-    .photo-picker-cell-selected {
-      border-color: var(--accent);
-      box-shadow: 0 0 12px rgba(128, 255, 204, 0.2);
-    }
-    .photo-picker-checkbox {
-      position: absolute; top: 8px; left: 8px; z-index: 2;
-      width: 18px; height: 18px; cursor: pointer;
-      accent-color: var(--accent);
-    }
-    .photo-picker-thumb {
-      width: 100%; aspect-ratio: 1; object-fit: cover;
-      display: block; background: rgba(0, 0, 0, 0.2);
-    }
-    .photo-picker-label {
-      font-size: 0.7rem; padding: 4px 6px;
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-      color: var(--text-secondary);
-      background: rgba(0, 0, 0, 0.2);
-    }
-  `;
-  document.head.appendChild(style);
-}

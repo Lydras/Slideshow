@@ -10,8 +10,6 @@ export function createFolderBrowser({ credentialId, service, onSelect }) {
     <div class="folder-browser-list" id="fb-list">Loading...</div>
   `;
 
-  addBrowserStyles();
-
   let currentPath = '';
 
   async function loadFolder(path) {
@@ -70,31 +68,3 @@ export function createFolderBrowser({ credentialId, service, onSelect }) {
   return container;
 }
 
-function addBrowserStyles() {
-  if (document.getElementById('folder-browser-styles')) return;
-  const style = document.createElement('style');
-  style.id = 'folder-browser-styles';
-  style.textContent = `
-    .folder-browser { max-height: 400px; overflow-y: auto; }
-    .folder-browser-path {
-      padding: 0.6rem 0.85rem;
-      background: rgba(255, 255, 255, 0.03);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border: 1px solid var(--glass-border);
-      border-radius: var(--radius-sm); margin-bottom: 0.5rem;
-      font-size: 0.85rem; color: var(--text-secondary);
-    }
-    .folder-item {
-      padding: 0.5rem 0.6rem; cursor: pointer; border-radius: var(--radius-sm);
-      font-size: 0.9rem;
-      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-      border: 1px solid transparent;
-    }
-    .folder-item:hover {
-      background: var(--glass-bg-hover);
-      border-color: var(--glass-border);
-    }
-  `;
-  document.head.appendChild(style);
-}

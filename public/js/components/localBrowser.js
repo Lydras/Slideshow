@@ -5,8 +5,6 @@ export function createLocalBrowser({ onSelect }) {
   const container = document.createElement('div');
   container.className = 'local-browser';
 
-  addLocalBrowserStyles();
-
   let currentResult = null;
 
   container.innerHTML = `
@@ -145,43 +143,3 @@ export function createLocalBrowser({ onSelect }) {
   return container;
 }
 
-function addLocalBrowserStyles() {
-  if (document.getElementById('local-browser-styles')) return;
-  const style = document.createElement('style');
-  style.id = 'local-browser-styles';
-  style.textContent = `
-    .local-browser { display: flex; flex-direction: column; gap: 0.5rem; }
-    .local-browser-breadcrumb {
-      padding: 0.5rem; background: var(--bg-primary);
-      border-radius: var(--radius); font-size: 0.85rem;
-      color: var(--text-secondary); overflow-x: auto; white-space: nowrap;
-    }
-    .lb-crumb { cursor: pointer; color: var(--accent, #4a9eff); }
-    .lb-crumb:hover { text-decoration: underline; }
-    .lb-crumb-current { color: var(--text-primary); cursor: default; }
-    .lb-crumb-current:hover { text-decoration: none; }
-    .lb-sep { color: var(--text-secondary); margin: 0 2px; }
-    .local-browser-list {
-      max-height: 350px; overflow-y: auto;
-      border: 1px solid var(--border); border-radius: var(--radius);
-    }
-    .lb-item {
-      padding: 0.5rem 0.75rem; cursor: pointer; font-size: 0.9rem;
-      display: flex; align-items: center; gap: 0.5rem;
-    }
-    .lb-item:hover { background: var(--bg-tertiary); }
-    .lb-item-file { color: var(--text-secondary); cursor: default; }
-    .lb-item-file:hover { background: transparent; }
-    .lb-icon { font-size: 1rem; flex-shrink: 0; }
-    .lb-pager {
-      display: flex; align-items: center; gap: 0.5rem;
-      padding: 0.5rem; font-size: 0.85rem; color: var(--text-secondary);
-    }
-    .local-browser-footer {
-      display: flex; justify-content: space-between; align-items: center;
-      padding-top: 0.5rem; border-top: 1px solid var(--border);
-    }
-    .lb-info { font-size: 0.85rem; color: var(--text-secondary); }
-  `;
-  document.head.appendChild(style);
-}
