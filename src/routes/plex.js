@@ -3,6 +3,7 @@ const { body } = require('express-validator');
 const { validate } = require('../middleware/validation');
 const { authRateLimit } = require('../middleware/security');
 const { parseIntParam } = require('../utils/parseIntParam');
+const { getDb } = require('../db/connection');
 const plexService = require('../services/plexService');
 
 const router = Router();
@@ -49,7 +50,6 @@ function resolveServerUrl(credentialId, queryUrl) {
   } catch (err) { console.warn('Failed to resolve server URL from credential:', err.message); }
 
   // Fall back to existing sources
-  const { getDb } = require('../db/connection');
   const db = getDb();
   const source = db.prepare(
     'SELECT plex_server_url FROM sources WHERE credential_id = ? AND type = ? LIMIT 1'

@@ -4,6 +4,9 @@ const crypto = require('crypto');
 const sharp = require('sharp');
 const { THUMBNAIL_DIR, THUMBNAIL_SIZE, THUMBNAIL_QUALITY } = require('../config/constants');
 const { getSource } = require('./sourceService');
+const { getDb } = require('../db/connection');
+const dropboxService = require('./dropboxService');
+const plexService = require('./plexService');
 
 // Ensure thumbnail directory exists
 function ensureThumbnailDir() {
@@ -21,7 +24,6 @@ function getThumbnailPath(key) {
 }
 
 async function getThumbnail(sourceId, imageId) {
-  const { getDb } = require('../db/connection');
   const db = getDb();
 
   const image = db.prepare('SELECT * FROM image_cache WHERE id = ? AND source_id = ?').get(imageId, sourceId);
@@ -69,7 +71,6 @@ async function generateLocalThumbnail(source, image, thumbPath) {
 
 async function generateDropboxThumbnail(source, image, thumbPath) {
   try {
-    const dropboxService = require('./dropboxService');
     const thumbnailData = await dropboxService.getThumbnail(source.credential_id, image.file_path);
     if (thumbnailData) {
       fs.writeFileSync(thumbPath, thumbnailData);
@@ -91,7 +92,6 @@ async function generateDropboxThumbnail(source, image, thumbPath) {
 
 async function generatePlexThumbnail(source, image, thumbPath) {
   try {
-    const plexService = require('./plexService');
     const thumbData = await plexService.getThumbnail(
       source.credential_id, source.plex_server_url, image.file_path
     );

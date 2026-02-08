@@ -7,6 +7,8 @@ const { isSubPath } = require('../utils/pathUtils');
 const { parseIntParam } = require('../utils/parseIntParam');
 const { getThumbnail } = require('../services/thumbnailService');
 const { getFromCache, writeToCache, evictIfNeeded } = require('../services/cacheService');
+const dropboxService = require('../services/dropboxService');
+const plexService = require('../services/plexService');
 
 const router = Router();
 
@@ -64,7 +66,6 @@ router.get('/serve/dropbox/:sourceId/*', async (req, res, next) => {
       return res.sendFile(cached);
     }
 
-    const dropboxService = require('../services/dropboxService');
     const buffer = await dropboxService.downloadFile(source.credential_id, filePath);
     const ext = path.extname(filePath).toLowerCase();
     const mimeTypes = {
@@ -109,7 +110,6 @@ router.get('/serve/plex/:sourceId/*', async (req, res, next) => {
       return res.sendFile(cached);
     }
 
-    const plexService = require('../services/plexService');
     const { buffer, contentType } = await plexService.downloadPhoto(
       source.credential_id,
       source.plex_server_url,

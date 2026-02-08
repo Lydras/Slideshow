@@ -1,5 +1,7 @@
 const { getDb } = require('../db/connection');
 const { scanDirectory } = require('./localScannerService');
+const dropboxService = require('./dropboxService');
+const plexService = require('./plexService');
 
 function listSources() {
   const db = getDb();
@@ -69,10 +71,8 @@ async function scanSource(id) {
   if (source.type === 'local') {
     images = scanDirectory(source.path, !!source.include_subfolders);
   } else if (source.type === 'dropbox') {
-    const dropboxService = require('./dropboxService');
     images = await dropboxService.listImages(source.credential_id, source.path, !!source.include_subfolders);
   } else if (source.type === 'plex') {
-    const plexService = require('./plexService');
     images = await plexService.listPhotos(source.credential_id, source.plex_server_url, source.path);
   }
 
