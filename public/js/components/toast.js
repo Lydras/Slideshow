@@ -4,6 +4,8 @@ function getContainer() {
   if (!container) {
     container = document.createElement('div');
     container.id = 'toast-container';
+    container.setAttribute('aria-live', 'polite');
+    container.setAttribute('aria-atomic', 'true');
     document.body.appendChild(container);
   }
   return container;
@@ -12,6 +14,7 @@ function getContainer() {
 export function showToast(message, type = 'info', duration = 3000) {
   const toast = document.createElement('div');
   toast.className = `toast toast-${type}`;
+  toast.setAttribute('role', 'status');
   toast.textContent = message;
 
   getContainer().appendChild(toast);

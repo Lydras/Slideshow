@@ -52,42 +52,87 @@ function deleteSource(id) {
   db.prepare('DELETE FROM sources WHERE id = ?').run(id);
 }
 
-async function scanSource(id) {
+function getSelectionState(sourceId) {
   const db = getDb();
-  const source = getSource(id);
-  if (!source) return null;
-
-  // Build map of existing selections before clearing
   const existingImages = db.prepare(
-    'SELECT file_path, selected FROM image_cache WHERE source_id = ?'
-  ).all(id);
+    'SELECT id, file_path, selected FROM image_cache WHERE source_id = ?'
+  ).all(sourceId);
+
   const selectionMap = new Map();
   for (const img of existingImages) {
     selectionMap.set(img.file_path, img.selected);
   }
 
+  const playlistSelections = db.prepare(
+    `SELECT pi.playlist_id, pi.sort_order, ic.file_path
+     FROM playlist_images pi
+     JOIN image_cache ic ON ic.id = pi.image_id
+     WHERE ic.source_id = ?
+     ORDER BY pi.playlist_id, pi.sort_order`
+  ).all(sourceId);
+
+  const playlistSelectionMap = new Map();
+  for (const row of playlistSelections) {
+    if (!playlistSelectionMap.has(row.playlist_id)) {
+      playlistSelectionMap.set(row.playlist_id, []);
+    }
+    playlistSelectionMap.get(row.playlist_id).push({ file_path: row.file_path, sort_order: row.sort_order });
+  }
+
+  return { selectionMap, playlistSelectionMap };
+}
+
+async function scanSource(id) {
+  const db = getDb();
+  const source = getSource(id);
+  if (!source) return null;
+
+  const { selectionMap, playlistSelectionMap } = getSelectionState(id);
+
   let images = [];
 
   if (source.type === 'local') {
-    images = scanDirectory(source.path, !!source.include_subfolders);
+    images = scanDirectory(source.path, !!source.include_subfolders).map(img => ({
+      ...img,
+      thumbnail_path: null,
+    }));
   } else if (source.type === 'dropbox') {
-    images = await dropboxService.listImages(source.credential_id, source.path, !!source.include_subfolders);
+    images = (await dropboxService.listImages(source.credential_id, source.path, !!source.include_subfolders)).map(img => ({
+      ...img,
+      thumbnail_path: null,
+    }));
   } else if (source.type === 'plex') {
     images = await plexService.listPhotos(source.credential_id, source.plex_server_url, source.path);
   }
 
-  // Clear and re-insert inside a single transaction so a failed scan doesn't lose data
-  const insert = db.prepare(
-    'INSERT INTO image_cache (source_id, file_path, file_name, selected) VALUES (?, ?, ?, ?)'
+  const insertImage = db.prepare(
+    'INSERT INTO image_cache (source_id, file_path, file_name, selected, thumbnail_path, is_available) VALUES (?, ?, ?, ?, ?, ?)'
   );
+  const insertPlaylistImage = db.prepare(
+    'INSERT INTO playlist_images (playlist_id, image_id, sort_order) VALUES (?, ?, ?)'
+  );
+
   const transaction = db.transaction(() => {
     db.prepare('DELETE FROM image_cache WHERE source_id = ?').run(id);
+
+    const insertedByPath = new Map();
     for (const img of images) {
-      // Preserve previous selection state; new images default to selected
       const selected = selectionMap.has(img.file_path) ? selectionMap.get(img.file_path) : 1;
-      insert.run(id, img.file_path, img.file_name, selected);
+      const result = insertImage.run(id, img.file_path, img.file_name, selected, img.thumbnail_path || null, 1);
+      insertedByPath.set(img.file_path, result.lastInsertRowid);
+    }
+
+    for (const [playlistId, selections] of playlistSelectionMap.entries()) {
+      let sortOrder = 0;
+      for (const selection of selections) {
+        const imageId = insertedByPath.get(selection.file_path);
+        if (!imageId) continue;
+        insertPlaylistImage.run(playlistId, imageId, sortOrder);
+        sortOrder++;
+      }
     }
   });
+
   transaction();
 
   return { count: images.length };
@@ -95,26 +140,32 @@ async function scanSource(id) {
 
 function getSourceImages(id) {
   const db = getDb();
-  return db.prepare('SELECT * FROM image_cache WHERE source_id = ? ORDER BY file_name').all(id);
+  return db.prepare('SELECT * FROM image_cache WHERE source_id = ? AND is_available = 1 ORDER BY file_name').all(id);
+}
+
+function markImageUnavailable(sourceId, imageId) {
+  const db = getDb();
+  db.prepare('UPDATE image_cache SET is_available = 0 WHERE source_id = ? AND id = ?').run(sourceId, imageId);
 }
 
 function updateImageSelection(sourceId, imageIds, selected) {
   const db = getDb();
   if (!imageIds || imageIds.length === 0) {
-    // Update all images for this source
     db.prepare('UPDATE image_cache SET selected = ? WHERE source_id = ?').run(selected, sourceId);
   } else {
-    const placeholders = imageIds.map(() => '?').join(',');
+    const normalizedIds = Array.from(new Set(imageIds.map(id => parseInt(id, 10)).filter(Number.isInteger)));
+    if (normalizedIds.length === 0) return;
+    const placeholders = normalizedIds.map(() => '?').join(',');
     db.prepare(
       `UPDATE image_cache SET selected = ? WHERE source_id = ? AND id IN (${placeholders})`
-    ).run(selected, sourceId, ...imageIds);
+    ).run(selected, sourceId, ...normalizedIds);
   }
 }
 
 function getSourceImageCounts(sourceId) {
   const db = getDb();
-  const total = db.prepare('SELECT COUNT(*) as count FROM image_cache WHERE source_id = ?').get(sourceId);
-  const selected = db.prepare('SELECT COUNT(*) as count FROM image_cache WHERE source_id = ? AND selected = 1').get(sourceId);
+  const total = db.prepare('SELECT COUNT(*) as count FROM image_cache WHERE source_id = ? AND is_available = 1').get(sourceId);
+  const selected = db.prepare('SELECT COUNT(*) as count FROM image_cache WHERE source_id = ? AND selected = 1 AND is_available = 1').get(sourceId);
   return { total: total.count, selected: selected.count };
 }
 
@@ -126,6 +177,7 @@ module.exports = {
   deleteSource,
   scanSource,
   getSourceImages,
+  markImageUnavailable,
   updateImageSelection,
   getSourceImageCounts,
 };

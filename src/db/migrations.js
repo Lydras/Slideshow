@@ -4,7 +4,6 @@ const defaults = require('../config/defaults');
 function runMigrations() {
   const db = getDb();
 
-  // Core tables (no new columns - compatible with existing databases)
   db.exec(`
     CREATE TABLE IF NOT EXISTS settings (
       key TEXT PRIMARY KEY,
@@ -61,10 +60,8 @@ function runMigrations() {
     CREATE INDEX IF NOT EXISTS idx_image_cache_source_id ON image_cache(source_id);
   `);
 
-  // Run incremental migrations (adds columns to existing tables)
   runIncrementalMigrations(db);
 
-  // Create tables and indexes that depend on incremental migrations
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_image_cache_selected ON image_cache(source_id, selected);
 
@@ -78,7 +75,6 @@ function runMigrations() {
     );
   `);
 
-  // Seed default settings
   const insert = db.prepare(
     'INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)'
   );
@@ -91,11 +87,19 @@ function runMigrations() {
 }
 
 function runIncrementalMigrations(db) {
-  // Add 'selected' column to image_cache if missing (for existing databases)
-  const columns = db.prepare("PRAGMA table_info(image_cache)").all();
-  const hasSelected = columns.some(c => c.name === 'selected');
-  if (!hasSelected) {
+  const columns = db.prepare('PRAGMA table_info(image_cache)').all();
+  const columnNames = new Set(columns.map(column => column.name));
+
+  if (!columnNames.has('selected')) {
     db.exec('ALTER TABLE image_cache ADD COLUMN selected INTEGER NOT NULL DEFAULT 1');
+  }
+
+  if (!columnNames.has('thumbnail_path')) {
+    db.exec('ALTER TABLE image_cache ADD COLUMN thumbnail_path TEXT');
+  }
+
+  if (!columnNames.has('is_available')) {
+    db.exec('ALTER TABLE image_cache ADD COLUMN is_available INTEGER NOT NULL DEFAULT 1');
   }
 }
 

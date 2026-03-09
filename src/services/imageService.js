@@ -2,6 +2,12 @@ const { getDb } = require('../db/connection');
 const { shuffleArray } = require('../utils/shuffleArray');
 const { getAllSettings } = require('./settingsService');
 
+function playlistExists(db, playlistId) {
+  if (!playlistId) return false;
+  const row = db.prepare('SELECT id FROM playlists WHERE id = ?').get(playlistId);
+  return !!row;
+}
+
 function getImagesForPlaylist(playlistId) {
   const db = getDb();
 
@@ -12,7 +18,6 @@ function getImagesForPlaylist(playlistId) {
     ).all(playlistId);
     sourceIds = rows.map(r => r.source_id);
   } else {
-    // No playlist: use all sources
     const rows = db.prepare('SELECT id FROM sources ORDER BY id').all();
     sourceIds = rows.map(r => r.id);
   }
@@ -21,43 +26,54 @@ function getImagesForPlaylist(playlistId) {
 
   const placeholders = sourceIds.map(() => '?').join(',');
 
-  // Check if playlist has custom image selections
   if (playlistId) {
     const customCount = db.prepare(
-      'SELECT COUNT(*) as count FROM playlist_images WHERE playlist_id = ?'
+      `SELECT COUNT(*) as count
+       FROM playlist_images pi
+       JOIN image_cache ic ON ic.id = pi.image_id
+       WHERE pi.playlist_id = ? AND ic.is_available = 1`
     ).get(playlistId);
 
     if (customCount.count > 0) {
-      // Use playlist-specific image selections
-      const images = db.prepare(
+      return db.prepare(
         `SELECT ic.*, s.type as source_type, s.plex_server_url
          FROM playlist_images pi
          JOIN image_cache ic ON ic.id = pi.image_id
          JOIN sources s ON s.id = ic.source_id
-         WHERE pi.playlist_id = ?
+         WHERE pi.playlist_id = ? AND ic.is_available = 1
          ORDER BY pi.sort_order, ic.file_name`
       ).all(playlistId);
-      return images;
     }
   }
 
-  // Default: return selected images from sources
-  const images = db.prepare(
+  return db.prepare(
     `SELECT ic.*, s.type as source_type, s.plex_server_url
      FROM image_cache ic
      JOIN sources s ON s.id = ic.source_id
-     WHERE ic.source_id IN (${placeholders}) AND ic.selected = 1
+     WHERE ic.source_id IN (${placeholders}) AND ic.selected = 1 AND ic.is_available = 1
      ORDER BY ic.source_id, ic.file_name`
   ).all(...sourceIds);
+}
 
-  return images;
+function getEffectivePlaylistId(explicitPlaylistId) {
+  const db = getDb();
+  if (explicitPlaylistId && playlistExists(db, explicitPlaylistId)) {
+    return explicitPlaylistId;
+  }
+
+  const settings = getAllSettings();
+  const activePlaylistId = settings.active_playlist_id || null;
+  if (activePlaylistId && playlistExists(db, activePlaylistId)) {
+    return activePlaylistId;
+  }
+
+  return null;
 }
 
 function getSlideshowImages(playlistId) {
   const settings = getAllSettings();
-  let images = getImagesForPlaylist(playlistId || settings.active_playlist_id || null);
+  let images = getImagesForPlaylist(getEffectivePlaylistId(playlistId));
 
-  // Build URLs for each image
   images = images.map(img => ({
     id: img.id,
     source_id: img.source_id,
@@ -73,7 +89,7 @@ function getSlideshowImages(playlistId) {
 }
 
 function encodePathSegments(filePath) {
-  return filePath.split('/').map(s => encodeURIComponent(s)).join('/');
+  return filePath.split('/').map(segment => encodeURIComponent(segment)).join('/');
 }
 
 function buildImageUrl(image) {
@@ -84,9 +100,9 @@ function buildImageUrl(image) {
     return `/api/images/serve/dropbox/${image.source_id}${encodePathSegments(image.file_path)}`;
   }
   if (image.source_type === 'plex') {
-    return `/api/images/serve/plex/${image.source_id}${encodePathSegments(image.file_path)}`;
+    return `/api/images/serve/plex/${image.source_id}/${image.id}`;
   }
   return '';
 }
 
-module.exports = { getSlideshowImages, getImagesForPlaylist };
+module.exports = { getSlideshowImages, getImagesForPlaylist, getEffectivePlaylistId };

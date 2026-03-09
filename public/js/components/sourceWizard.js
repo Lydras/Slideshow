@@ -16,7 +16,9 @@ export function openSourceWizard({ onComplete, initialState }) {
     includeSubfolders: true,
     scannedImages: [],
     selectedImageIds: [],
+    selectedImagePaths: null,
     sourceName: '',
+    scanSignature: null,
     wizardCompleted: false,
     plexAlbumKey: null,
     ...initialState,
@@ -612,14 +614,14 @@ export function openSourceWizard({ onComplete, initialState }) {
       for (const lib of libraries) {
         const item = document.createElement('div');
         item.className = 'wizard-type-card';
-        item.style.padding = '1rem';
         item.innerHTML = `
           <div class="wizard-type-title">${escapeHtml(lib.title)}</div>
-          <div class="wizard-type-desc">${lib.count} items</div>
+          <div class="wizard-type-desc">${escapeHtml(lib.count_label || 'Browse to inspect')}</div>
         `;
         item.addEventListener('click', () => {
           state.sectionId = lib.key;
           state.selectedPath = lib.key;
+          state.plexAlbumKey = null;
           state.sourceName = lib.title;
           state.step = 4;
           renderStep();
@@ -639,24 +641,32 @@ export function openSourceWizard({ onComplete, initialState }) {
     container.appendChild(wrapper);
 
     const PHOTO_PREVIEW_LIMIT = 60;
-    const currentPath = []; // stack of { title, ratingKey }
+    const currentPath = [];
+    let photoPage = 1;
+
+    function resetPhotoPage() {
+      photoPage = 1;
+    }
 
     function selectScope(albumKey, albumTitle) {
       state.plexAlbumKey = albumKey;
       if (albumTitle) state.sourceName = albumTitle;
-      state.step = 6;
+      state.step = 5;
       renderStep();
     }
 
     async function loadContents() {
       wrapper.innerHTML = '';
 
-      // Header
       const header = document.createElement('h3');
-      header.textContent = 'Browse Library';
+      header.textContent = 'Browse Plex Library';
       wrapper.appendChild(header);
 
-      // Breadcrumb bar
+      const intro = document.createElement('p');
+      intro.className = 'inline-note mb-1';
+      intro.textContent = 'Browse albums and preview photos here. The next step lets you scan the selected scope and choose the exact photos to include.';
+      wrapper.appendChild(intro);
+
       const breadcrumbBar = document.createElement('div');
       breadcrumbBar.className = 'plex-breadcrumbs';
 
@@ -667,6 +677,7 @@ export function openSourceWizard({ onComplete, initialState }) {
         rootCrumb.classList.add('clickable');
         rootCrumb.addEventListener('click', () => {
           currentPath.length = 0;
+          resetPhotoPage();
           loadContents();
         });
       }
@@ -686,6 +697,7 @@ export function openSourceWizard({ onComplete, initialState }) {
           const depth = i + 1;
           crumb.addEventListener('click', () => {
             currentPath.length = depth;
+            resetPhotoPage();
             loadContents();
           });
         }
@@ -694,35 +706,31 @@ export function openSourceWizard({ onComplete, initialState }) {
 
       wrapper.appendChild(breadcrumbBar);
 
-      // Action bar - context-dependent selection
       const actionBar = document.createElement('div');
       actionBar.className = 'wizard-btn-row';
-      actionBar.style.marginBottom = '1rem';
 
       if (currentPath.length === 0) {
         const selectAllBtn = document.createElement('button');
         selectAllBtn.className = 'btn-primary btn-small';
-        selectAllBtn.textContent = 'Use Entire Library';
+        selectAllBtn.textContent = 'Review Entire Library';
         selectAllBtn.addEventListener('click', () => selectScope(null, null));
         actionBar.appendChild(selectAllBtn);
       } else {
         const current = currentPath[currentPath.length - 1];
         const selectAlbumBtn = document.createElement('button');
         selectAlbumBtn.className = 'btn-primary btn-small';
-        selectAlbumBtn.textContent = `Select \u201C${current.title}\u201D`;
+        selectAlbumBtn.textContent = `Review “${current.title}”`;
         selectAlbumBtn.addEventListener('click', () => selectScope(current.ratingKey, current.title));
         actionBar.appendChild(selectAlbumBtn);
       }
 
       wrapper.appendChild(actionBar);
 
-      // Loading indicator
       const loadingDiv = document.createElement('div');
       loadingDiv.textContent = 'Loading...';
       loadingDiv.style.cssText = 'color:var(--text-secondary);padding:1rem 0';
       wrapper.appendChild(loadingDiv);
 
-      // Back button at bottom
       const nav = document.createElement('div');
       nav.className = 'wizard-nav';
       nav.style.marginTop = '1.25rem';
@@ -733,6 +741,7 @@ export function openSourceWizard({ onComplete, initialState }) {
       backBtn.addEventListener('click', () => {
         if (currentPath.length > 0) {
           currentPath.pop();
+          resetPhotoPage();
           loadContents();
         } else {
           state.step = 3;
@@ -740,10 +749,8 @@ export function openSourceWizard({ onComplete, initialState }) {
         }
       });
       nav.appendChild(backBtn);
-
       wrapper.appendChild(nav);
 
-      // Load data
       try {
         let data;
         if (currentPath.length === 0) {
@@ -755,10 +762,9 @@ export function openSourceWizard({ onComplete, initialState }) {
 
         loadingDiv.remove();
 
-        // Show albums
         if (data.albums.length > 0) {
           const albumsSection = document.createElement('div');
-          albumsSection.innerHTML = `<div style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:0.5rem">${data.albums.length} album${data.albums.length !== 1 ? 's' : ''}</div>`;
+          albumsSection.innerHTML = `<div class="inline-note mb-1">${data.albums.length} album${data.albums.length !== 1 ? 's' : ''}</div>`;
 
           const albumGrid = document.createElement('div');
           albumGrid.className = 'plex-album-grid';
@@ -770,26 +776,28 @@ export function openSourceWizard({ onComplete, initialState }) {
             const thumbUrl = album.thumb
               ? api.getPlexThumbnailUrl(state.credentialId, album.thumb, state.serverUrl)
               : '';
+            const countLabel = album.leafCount === null || album.leafCount === undefined
+              ? 'Browse to inspect'
+              : `${album.leafCount} photo${album.leafCount === 1 ? '' : 's'}`;
 
             card.innerHTML = `
               ${thumbUrl ? `<img src="${escapeHtml(thumbUrl)}" class="plex-album-thumb" loading="lazy" alt="">` : '<div class="plex-album-thumb plex-album-no-thumb"></div>'}
               <div class="plex-album-info">
                 <div class="plex-album-title">${escapeHtml(album.title)}</div>
-                <div class="plex-album-count">${album.leafCount || 0} photos</div>
+                <div class="plex-album-count">${escapeHtml(countLabel)}</div>
               </div>
-              <button class="plex-album-select-btn btn-primary btn-small">Select</button>
+              <button class="plex-album-select-btn btn-primary btn-small">Review</button>
             `;
 
-            // Click card to drill into album
-            card.addEventListener('click', (e) => {
-              if (e.target.closest('.plex-album-select-btn')) return;
+            card.addEventListener('click', (event) => {
+              if (event.target.closest('.plex-album-select-btn')) return;
               currentPath.push({ title: album.title, ratingKey: album.ratingKey });
+              resetPhotoPage();
               loadContents();
             });
 
-            // Click "Select" to choose this album directly
-            card.querySelector('.plex-album-select-btn').addEventListener('click', (e) => {
-              e.stopPropagation();
+            card.querySelector('.plex-album-select-btn').addEventListener('click', (event) => {
+              event.stopPropagation();
               selectScope(album.ratingKey, album.title);
             });
 
@@ -800,19 +808,23 @@ export function openSourceWizard({ onComplete, initialState }) {
           wrapper.insertBefore(albumsSection, nav);
         }
 
-        // Show photos
         if (data.photos.length > 0) {
+          const totalPages = Math.max(1, Math.ceil(data.photos.length / PHOTO_PREVIEW_LIMIT));
+          photoPage = Math.min(photoPage, totalPages);
+          const start = (photoPage - 1) * PHOTO_PREVIEW_LIMIT;
+          const end = start + PHOTO_PREVIEW_LIMIT;
+          const pagePhotos = data.photos.slice(start, end);
+
           const photosSection = document.createElement('div');
-          const showing = Math.min(data.photos.length, PHOTO_PREVIEW_LIMIT);
           const label = data.photos.length > PHOTO_PREVIEW_LIMIT
-            ? `${data.photos.length} photos (showing first ${showing})`
+            ? `${data.photos.length} photos at this level · Page ${photoPage} of ${totalPages}`
             : `${data.photos.length} photo${data.photos.length !== 1 ? 's' : ''}`;
-          photosSection.innerHTML = `<div style="color:var(--text-secondary);font-size:0.85rem;margin:0.75rem 0 0.5rem">${label}</div>`;
+          photosSection.innerHTML = `<div class="inline-note" style="margin:0.75rem 0 0.5rem">${label}</div>`;
 
           const photoGrid = document.createElement('div');
           photoGrid.className = 'plex-photo-grid';
 
-          for (const photo of data.photos.slice(0, PHOTO_PREVIEW_LIMIT)) {
+          for (const photo of pagePhotos) {
             const cell = document.createElement('div');
             cell.className = 'plex-photo-cell';
 
@@ -831,6 +843,37 @@ export function openSourceWizard({ onComplete, initialState }) {
           }
 
           photosSection.appendChild(photoGrid);
+
+          if (totalPages > 1) {
+            const pager = document.createElement('div');
+            pager.className = 'wizard-btn-row';
+            pager.style.marginTop = '0.75rem';
+
+            const prevBtn = document.createElement('button');
+            prevBtn.className = 'btn-secondary btn-small';
+            prevBtn.textContent = 'Previous Page';
+            prevBtn.disabled = photoPage === 1;
+            prevBtn.addEventListener('click', () => {
+              if (photoPage === 1) return;
+              photoPage -= 1;
+              loadContents();
+            });
+
+            const nextBtn = document.createElement('button');
+            nextBtn.className = 'btn-secondary btn-small';
+            nextBtn.textContent = 'Next Page';
+            nextBtn.disabled = photoPage === totalPages;
+            nextBtn.addEventListener('click', () => {
+              if (photoPage === totalPages) return;
+              photoPage += 1;
+              loadContents();
+            });
+
+            pager.appendChild(prevBtn);
+            pager.appendChild(nextBtn);
+            photosSection.appendChild(pager);
+          }
+
           wrapper.insertBefore(photosSection, nav);
         }
 
@@ -840,13 +883,35 @@ export function openSourceWizard({ onComplete, initialState }) {
           emptyMsg.style.cssText = 'color:var(--text-secondary);padding:1rem 0';
           wrapper.insertBefore(emptyMsg, nav);
         }
-
       } catch (err) {
         loadingDiv.innerHTML = `<span style="color:var(--error)">Error: ${escapeHtml(err.message)}</span>`;
       }
     }
 
     loadContents();
+  }
+  async function upsertTemporarySource(sourceData) {
+    if (state.createdSourceId) {
+      await api.updateSource(state.createdSourceId, sourceData);
+      return { id: state.createdSourceId, ...sourceData };
+    }
+
+    const source = await api.createSource(sourceData);
+    state.createdSourceId = source.id;
+    return source;
+  }
+
+  async function applySelectedImages(sourceId) {
+    if (state.scannedImages.length === 0) return;
+
+    const selectedPaths = new Set(state.selectedImagePaths || []);
+    const deselectedIds = state.scannedImages
+      .filter(img => !selectedPaths.has(img.file_path))
+      .map(img => img.id);
+
+    if (deselectedIds.length > 0) {
+      await api.updateBulkImageSelection(sourceId, 0, deselectedIds);
+    }
   }
 
   // ---- Shared steps ----
@@ -855,8 +920,8 @@ export function openSourceWizard({ onComplete, initialState }) {
     wrapper.className = 'wizard-step';
     wrapper.innerHTML = `
       <h3>Select Photos</h3>
-      <div id="scan-status" style="padding:1rem;color:var(--text-secondary)">
-        Scanning for images...
+      <div id="scan-status" class="wizard-status-card wizard-status-card-loading">
+        Scanning source and preparing previews...
       </div>
       <div id="picker-container"></div>
     `;
@@ -870,22 +935,30 @@ export function openSourceWizard({ onComplete, initialState }) {
     const pickerContainer = wrapper.querySelector('#picker-container');
 
     try {
-      // Create the source first (temp name), scan it, then show picker
       const sourceData = buildSourceData();
-      const source = await api.createSource(sourceData);
+      const nextSignature = JSON.stringify(sourceData);
+      if (state.scanSignature !== nextSignature) {
+        state.selectedImageIds = [];
+        state.selectedImagePaths = null;
+      }
+
+      const source = await upsertTemporarySource(sourceData);
 
       statusEl.textContent = 'Scanning source for images...';
       const scanResult = await api.scanSource(source.id);
-      statusEl.textContent = `Found ${scanResult.count} images. Select which to include:`;
+      state.scanSignature = nextSignature;
 
       if (scanResult.count === 0) {
-        statusEl.textContent = 'No images found in this location.';
-        // Add a skip/save button
+        state.scannedImages = [];
+        state.selectedImageIds = [];
+        state.selectedImagePaths = null;
+        statusEl.className = 'wizard-status-card wizard-status-card-empty';
+        statusEl.textContent = 'No images were found in this source yet. You can still save it and scan again later.';
+
         const skipBtn = document.createElement('button');
         skipBtn.className = 'btn-primary mt-1';
         skipBtn.textContent = 'Continue Anyway';
         skipBtn.addEventListener('click', () => {
-          state.createdSourceId = source.id;
           state.step = nextStep;
           renderStep();
         });
@@ -893,22 +966,33 @@ export function openSourceWizard({ onComplete, initialState }) {
         return;
       }
 
-      // Load the scanned images
       const images = await api.getSourceImages(source.id);
+      const selectedPaths = new Set(state.selectedImagePaths || []);
+      const hasExistingSelection = Array.isArray(state.selectedImagePaths);
+      const pickerImages = images.map(img => ({
+        ...img,
+        selected: hasExistingSelection ? (selectedPaths.has(img.file_path) ? 1 : 0) : 1,
+      }));
+
       state.scannedImages = images;
-      state.selectedImageIds = images.map(img => img.id);
-      state.createdSourceId = source.id;
+      state.selectedImageIds = pickerImages.filter(img => img.selected !== 0).map(img => img.id);
+      state.selectedImagePaths = pickerImages.filter(img => img.selected !== 0).map(img => img.file_path);
+
+      statusEl.className = 'wizard-status-card wizard-status-card-ready';
+      statusEl.textContent = `Found ${scanResult.count} image${scanResult.count === 1 ? '' : 's'}. Choose which ones should appear in this source.`;
 
       const picker = createPhotoPicker({
-        images,
+        images: pickerImages,
         onSelectionChange: (ids) => {
           state.selectedImageIds = ids;
+          state.selectedImagePaths = pickerImages
+            .filter(img => ids.includes(img.id))
+            .map(img => img.file_path);
         },
       });
 
       pickerContainer.appendChild(picker.element);
 
-      // Add continue button
       const continueBtn = document.createElement('button');
       continueBtn.className = 'btn-primary mt-1';
       continueBtn.style.marginTop = '0.75rem';
@@ -920,7 +1004,8 @@ export function openSourceWizard({ onComplete, initialState }) {
       pickerContainer.appendChild(continueBtn);
 
     } catch (err) {
-      statusEl.innerHTML = `<span style="color:var(--error)">Error: ${escapeHtml(err.message)}</span>`;
+      statusEl.className = 'wizard-status-card wizard-status-card-error';
+      statusEl.textContent = `Error: ${err.message}`;
     }
   }
 
@@ -928,7 +1013,7 @@ export function openSourceWizard({ onComplete, initialState }) {
     const wrapper = document.createElement('div');
     wrapper.className = 'wizard-step';
 
-    const prevStep = state.sourceType === 'local' ? 3 : 4;
+    const prevStep = state.sourceType === 'local' ? 3 : (state.sourceType === 'plex' ? 5 : 4);
 
     wrapper.innerHTML = `
       <h3>Name Your Source</h3>
@@ -968,27 +1053,17 @@ export function openSourceWizard({ onComplete, initialState }) {
         const includeSubfolders = wrapper.querySelector('#wiz-subfolder-final').checked ? 1 : 0;
 
         if (state.createdSourceId) {
-          // Update the source we already created during scan
           await api.updateSource(state.createdSourceId, {
             name,
             include_subfolders: includeSubfolders,
           });
 
-          // Apply deselections if any photos were unchecked
-          if (state.scannedImages.length > 0) {
-            const allIds = state.scannedImages.map(img => img.id);
-            const deselectedIds = allIds.filter(id => !state.selectedImageIds.includes(id));
-            if (deselectedIds.length > 0) {
-              await api.updateBulkImageSelection(state.createdSourceId, 0, deselectedIds);
-            }
-          }
+          await applySelectedImages(state.createdSourceId);
 
-          // If subfolder setting changed, re-scan
           if (includeSubfolders !== (state.includeSubfolders ? 1 : 0)) {
             await api.scanSource(state.createdSourceId);
           }
         } else {
-          // Create fresh source and scan for images
           const sourceData = buildSourceData();
           sourceData.name = name;
           sourceData.include_subfolders = includeSubfolders;
@@ -998,6 +1073,8 @@ export function openSourceWizard({ onComplete, initialState }) {
           saveBtn.textContent = 'Scanning...';
           await api.scanSource(newSource.id);
         }
+
+        state.includeSubfolders = includeSubfolders === 1;
 
         state.wizardCompleted = true;
         showToast('Source added successfully', 'success');
@@ -1048,4 +1125,10 @@ export function openSourceWizard({ onComplete, initialState }) {
     wrapper.appendChild(nav);
   }
 }
+
+
+
+
+
+
 

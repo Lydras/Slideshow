@@ -6,14 +6,40 @@ function requireCredential(credentialId) {
   return cred;
 }
 
-// For API/metadata requests (expects JSON responses)
-async function plexFetch(serverUrl, path, token) {
-  const url = `${serverUrl.replace(/\/$/, '')}${path}`;
+function getPlexCount(entry) {
+  const candidates = [entry?.leafCount, entry?.totalSize, entry?.count];
+  for (const value of candidates) {
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    if (typeof value === 'string' && value.trim() !== '' && !Number.isNaN(Number(value))) {
+      return Number(value);
+    }
+  }
+  return null;
+}
+
+function getPlexHeaders(token, accept = 'application/json') {
+  return {
+    'X-Plex-Token': token,
+    Accept: accept,
+    'X-Plex-Client-Identifier': 'slideshow-app',
+    'X-Plex-Product': 'Slideshow',
+    'X-Plex-Version': '1.0.0',
+    'X-Plex-Platform': 'Node.js',
+    'X-Plex-Platform-Version': process.version,
+    'X-Plex-Device': 'Server',
+    'X-Plex-Device-Name': 'Slideshow Server',
+  };
+}
+
+function withQueryParams(requestPath, params) {
+  const separator = requestPath.includes('?') ? '&' : '?';
+  return requestPath + separator + params;
+}
+
+async function plexFetch(serverUrl, requestPath, token) {
+  const url = `${serverUrl.replace(/\/$/, '')}${requestPath}`;
   const response = await fetch(url, {
-    headers: {
-      'X-Plex-Token': token,
-      Accept: 'application/json',
-    },
+    headers: getPlexHeaders(token),
   });
 
   if (!response.ok) {
@@ -23,12 +49,12 @@ async function plexFetch(serverUrl, path, token) {
   return response;
 }
 
-// For binary/media downloads (no Accept: application/json, token in query string)
-async function plexDownload(serverUrl, path, token) {
-  const base = `${serverUrl.replace(/\/$/, '')}${path}`;
-  const separator = base.includes('?') ? '&' : '?';
-  const url = `${base}${separator}X-Plex-Token=${encodeURIComponent(token)}`;
-  const response = await fetch(url);
+async function plexDownload(serverUrl, requestPath, token, options = {}) {
+  const requestWithParams = options.query ? withQueryParams(requestPath, options.query) : requestPath;
+  const url = `${serverUrl.replace(/\/$/, '')}${requestWithParams}`;
+  const response = await fetch(url, {
+    headers: getPlexHeaders(token, options.accept || '*/*'),
+  });
 
   if (!response.ok) {
     throw new Error(`Plex download error: ${response.status} ${response.statusText}`);
@@ -37,14 +63,18 @@ async function plexDownload(serverUrl, path, token) {
   return response;
 }
 
+async function downloadDirectResource(serverUrl, resourcePath, token, accept = "*/*") {
+  const response = await plexDownload(serverUrl, resourcePath, token, { accept });
+  const contentType = response.headers.get('content-type') || 'image/jpeg';
+  const buffer = Buffer.from(await response.arrayBuffer());
+  return { buffer, contentType };
+}
+
 async function connect(serverUrl, token) {
-  // Verify connection by fetching server identity
   const response = await plexFetch(serverUrl, '/', token);
   const data = await response.json();
-
   const serverName = data.MediaContainer?.friendlyName || 'Plex Server';
 
-  // Store server_url alongside token so it can be recalled later
   const credentialId = storeCredential('plex', `Plex: ${serverName}`, {
     token,
     server_url: serverUrl,
@@ -73,13 +103,17 @@ async function getLibraries(credentialId, serverUrl) {
 
   const sections = data.MediaContainer?.Directory || [];
   return sections
-    .filter(s => s.type === 'photo')
-    .map(s => ({
-      key: s.key,
-      title: s.title,
-      type: s.type,
-      count: s.leafCount || 0,
-    }));
+    .filter(section => section.type === 'photo')
+    .map(section => {
+      const count = getPlexCount(section);
+      return {
+        key: section.key,
+        title: section.title,
+        type: section.type,
+        count,
+        count_label: count === null ? 'Browse to inspect' : `${count} item${count === 1 ? '' : 's'}`,
+      };
+    });
 }
 
 async function getLibraryItems(credentialId, serverUrl, sectionId) {
@@ -104,7 +138,6 @@ async function listPhotos(credentialId, serverUrl, sourcePath) {
   const cred = requireCredential(credentialId);
   const token = cred.decrypted_data.token;
 
-  // Support album-scoped paths: "sectionId/album/ratingKey"
   let sectionId = sourcePath;
   let albumKey = null;
   if (sourcePath.includes('/album/')) {
@@ -115,32 +148,31 @@ async function listPhotos(credentialId, serverUrl, sourcePath) {
 
   const photos = [];
 
+  function pushPhoto(item, part) {
+    photos.push({
+      file_path: part?.key || item.key || item.thumb,
+      file_name: item.title || 'Unknown',
+      thumbnail_path: item.thumb || buildDerivedThumbPath(item) || item.key || part?.key || null,
+    });
+  }
+
   function extractPhotos(items) {
     for (const item of items) {
       if (item.Media) {
         for (const media of item.Media) {
           for (const part of media.Part || []) {
-            photos.push({
-              file_path: part.key || item.thumb,
-              file_name: item.title || 'Unknown',
-            });
+            pushPhoto(item, part);
           }
         }
-      } else if (item.thumb) {
-        photos.push({
-          file_path: item.thumb,
-          file_name: item.title || 'Unknown',
-        });
+      } else if (item.thumb || item.key) {
+        pushPhoto(item, null);
       }
     }
   }
 
   if (albumKey) {
-    // Album-scoped: only scan this specific album and its children
     await collectPhotosFromContainer(serverUrl, token, albumKey, extractPhotos);
   } else {
-    // Full section scan
-    // 1. Get direct photos at library root (type=13)
     try {
       const photoResponse = await plexFetch(
         serverUrl,
@@ -153,7 +185,6 @@ async function listPhotos(credentialId, serverUrl, sourcePath) {
       console.error('Error fetching direct photos:', err.message);
     }
 
-    // 2. Get all albums/collections (type=14) and traverse into each
     try {
       const albumResponse = await plexFetch(
         serverUrl,
@@ -184,7 +215,6 @@ async function collectPhotosFromContainer(serverUrl, token, ratingKey, extractPh
     const data = await response.json();
     const children = data.MediaContainer?.Metadata || [];
 
-    // Separate photos from nested albums
     const nestedAlbums = [];
     const photoItems = [];
 
@@ -198,7 +228,6 @@ async function collectPhotosFromContainer(serverUrl, token, ratingKey, extractPh
 
     extractPhotos(photoItems);
 
-    // Recurse into nested albums
     for (const nested of nestedAlbums) {
       await collectPhotosFromContainer(serverUrl, token, nested.ratingKey, extractPhotos);
     }
@@ -214,7 +243,6 @@ async function getSectionContents(credentialId, serverUrl, sectionId) {
   const albums = [];
   const photos = [];
 
-  // Get albums (type=14)
   try {
     const albumResponse = await plexFetch(serverUrl, `/library/sections/${sectionId}/all?type=14`, token);
     const albumData = await albumResponse.json();
@@ -223,14 +251,13 @@ async function getSectionContents(credentialId, serverUrl, sectionId) {
         title: album.title,
         ratingKey: album.ratingKey,
         thumb: album.thumb,
-        leafCount: album.leafCount || 0,
+        leafCount: getPlexCount(album),
       });
     }
   } catch (err) {
     console.error('Error fetching section albums:', err.message);
   }
 
-  // Get direct photos (type=13)
   try {
     const photoResponse = await plexFetch(serverUrl, `/library/sections/${sectionId}/all?type=13`, token);
     const photoData = await photoResponse.json();
@@ -271,7 +298,7 @@ async function getContainerChildren(credentialId, serverUrl, ratingKey) {
         title: child.title,
         ratingKey: child.ratingKey,
         thumb: child.thumb,
-        leafCount: child.leafCount || 0,
+        leafCount: getPlexCount(child),
       });
     }
   }
@@ -279,14 +306,124 @@ async function getContainerChildren(credentialId, serverUrl, ratingKey) {
   return { albums, photos };
 }
 
+async function getMetadataItem(serverUrl, token, ratingKey) {
+  const response = await plexFetch(serverUrl, `/library/metadata/${ratingKey}`, token);
+  const data = await response.json();
+  return data.MediaContainer?.Metadata?.[0] || null;
+}
+
+function isThumbPath(photoKey) {
+  return /\/thumb(?:\/|$)/.test(photoKey || '');
+}
+
+function buildDerivedThumbPath(item) {
+  const ratingKey = item?.ratingKey || extractRatingKey(item?.key);
+  const revision = item?.updatedAt || item?.addedAt;
+  if (!ratingKey || !revision) return null;
+  return `/library/metadata/${ratingKey}/thumb/${revision}`;
+}
+function getBestMetadataRenderPath(metadata) {
+  const candidates = [metadata?.thumb, buildDerivedThumbPath(metadata), metadata?.parentThumb, metadata?.grandparentThumb, metadata?.art];
+  return candidates.find(value => typeof value === 'string' && value.startsWith('/')) || null;
+}
+
+async function resolveTranscodeSource(serverUrl, token, photoKey) {
+  if (!photoKey) return null;
+  if (isThumbPath(photoKey)) return photoKey;
+
+  const ratingKey = extractRatingKey(photoKey);
+  if (!ratingKey) return photoKey;
+
+  try {
+    const metadata = await getMetadataItem(serverUrl, token, ratingKey);
+    return getBestMetadataRenderPath(metadata) || photoKey;
+  } catch (err) {
+    console.error(`Error resolving Plex transcode source for ${photoKey}:`, err.message);
+    return photoKey;
+  }
+}
+function extractRatingKey(photoKey) {
+  const match = /^\/library\/metadata\/(\d+)/.exec(photoKey || '');
+  return match ? match[1] : null;
+}
+
+function isDirectPhotoPath(photoKey) {
+  return /^\/library\/parts\//.test(photoKey || '');
+}
+
+async function resolveDownloadKey(serverUrl, token, photoKey) {
+  const ratingKey = extractRatingKey(photoKey);
+  if (!ratingKey) {
+    return photoKey;
+  }
+
+  try {
+    const response = await plexFetch(serverUrl, `/library/metadata/${ratingKey}`, token);
+    const data = await response.json();
+    const metadata = data.MediaContainer?.Metadata?.[0];
+
+    for (const media of metadata?.Media || []) {
+      for (const part of media.Part || []) {
+        if (part?.key) {
+          return part.key;
+        }
+      }
+    }
+  } catch (err) {
+    console.error(`Error resolving Plex download key for ${photoKey}:`, err.message);
+  }
+
+  return photoKey;
+}
+
+async function downloadTranscodedPhoto(credentialId, serverUrl, photoKey, dimensions = {}) {
+  const cred = requireCredential(credentialId);
+  const width = dimensions.width || 7680;
+  const height = dimensions.height || 4320;
+  const token = cred.decrypted_data.token;
+  const resolvedPhotoKey = await resolveTranscodeSource(serverUrl, token, photoKey);
+
+  if (isThumbPath(resolvedPhotoKey)) {
+    try {
+      return await downloadDirectResource(serverUrl, resolvedPhotoKey, token);
+    } catch (err) {
+      console.error('Direct Plex thumb download failed for ' + resolvedPhotoKey + ':', err.message);
+    }
+  }
+
+  const transcodeUrl = `/photo/:/transcode?width=${width}&height=${height}&minSize=1&upscale=1&url=${encodeURIComponent(resolvedPhotoKey)}`;
+  const response = await plexDownload(serverUrl, transcodeUrl, token);
+  const contentType = response.headers.get('content-type') || 'image/jpeg';
+  const buffer = Buffer.from(await response.arrayBuffer());
+  return { buffer, contentType };
+}
+
+async function downloadBestPhoto(credentialId, serverUrl, image) {
+  const transcodedSource = image?.thumbnail_path || image?.file_path;
+
+  if (transcodedSource) {
+    try {
+      return await downloadTranscodedPhoto(credentialId, serverUrl, transcodedSource);
+    } catch (err) {
+      console.error(`Plex transcoded photo failed for ${transcodedSource}:`, err.message);
+    }
+  }
+
+  return downloadPhoto(credentialId, serverUrl, image.file_path);
+}
+
 async function downloadPhoto(credentialId, serverUrl, photoKey) {
   const cred = requireCredential(credentialId);
+  const token = cred.decrypted_data.token;
+  const resolvedPhotoKey = await resolveDownloadKey(serverUrl, token, photoKey);
 
-  // Use the photo transcode endpoint with large dimensions to get full-quality image.
-  // Direct /library/parts/ downloads return 503 on some Plex servers,
-  // but the transcode endpoint reliably serves photos at any requested size.
-  const transcodeUrl = `/photo/:/transcode?width=7680&height=4320&minSize=1&url=${encodeURIComponent(photoKey)}`;
-  const response = await plexDownload(serverUrl, transcodeUrl, cred.decrypted_data.token);
+  const response = isDirectPhotoPath(resolvedPhotoKey)
+    ? await plexDownload(serverUrl, resolvedPhotoKey, token, { query: 'download=1' })
+    : await plexDownload(
+      serverUrl,
+      `/photo/:/transcode?width=7680&height=4320&minSize=1&url=${encodeURIComponent(resolvedPhotoKey)}`,
+      token
+    );
   const contentType = response.headers.get('content-type') || 'image/jpeg';
   const buffer = Buffer.from(await response.arrayBuffer());
 
@@ -297,11 +434,7 @@ async function getThumbnail(credentialId, serverUrl, photoKey) {
   const cred = requireCredential(credentialId);
 
   try {
-    const transcodeUrl = `/photo/:/transcode?width=200&height=200&minSize=1&url=${encodeURIComponent(photoKey)}`;
-    const response = await plexDownload(serverUrl, transcodeUrl, cred.decrypted_data.token);
-    const contentType = response.headers.get('content-type') || 'image/jpeg';
-    const buffer = Buffer.from(await response.arrayBuffer());
-    return { buffer, contentType };
+    return await downloadTranscodedPhoto(credentialId, serverUrl, photoKey, { width: 200, height: 200 });
   } catch (err) {
     console.error(`Plex thumbnail failed for ${photoKey}:`, err.message);
     return null;
@@ -317,5 +450,6 @@ module.exports = {
   getContainerChildren,
   listPhotos,
   downloadPhoto,
+  downloadBestPhoto,
   getThumbnail,
 };

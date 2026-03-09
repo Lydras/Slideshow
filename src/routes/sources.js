@@ -1,5 +1,5 @@
 const { Router } = require('express');
-const { body, param } = require('express-validator');
+const { body } = require('express-validator');
 const { validate } = require('../middleware/validation');
 const { SOURCE_TYPES } = require('../config/constants');
 const { parseIntParam } = require('../utils/parseIntParam');
@@ -95,23 +95,26 @@ router.get('/:id/images', (req, res) => {
   res.json(getSourceImages(id));
 });
 
-// Bulk update image selection for a source
-router.put('/:id/images/selection', (req, res) => {
-  const id = parseIntParam(req, res, 'id');
-  if (id === null) return;
-  const source = getSource(id);
-  if (!source) return res.status(404).json({ error: { message: 'Source not found' } });
+router.put(
+  '/:id/images/selection',
+  [
+    body('selected').isIn([0, 1]).withMessage('selected must be 0 or 1'),
+    body('image_ids').optional().isArray().withMessage('image_ids must be an array'),
+    body('image_ids.*').optional().isInt().withMessage('image_ids must contain integers only'),
+    validate,
+  ],
+  (req, res) => {
+    const id = parseIntParam(req, res, 'id');
+    if (id === null) return;
+    const source = getSource(id);
+    if (!source) return res.status(404).json({ error: { message: 'Source not found' } });
 
-  const { selected, image_ids } = req.body;
-  if (selected !== 0 && selected !== 1) {
-    return res.status(400).json({ error: { message: 'selected must be 0 or 1' } });
+    const { selected, image_ids } = req.body;
+    updateImageSelection(id, image_ids || [], selected);
+    res.json({ message: 'Selection updated' });
   }
+);
 
-  updateImageSelection(id, image_ids || [], selected);
-  res.json({ message: 'Selection updated' });
-});
-
-// Get image counts for a source
 router.get('/:id/images/counts', (req, res) => {
   const id = parseIntParam(req, res, 'id');
   if (id === null) return;

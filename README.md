@@ -1,107 +1,88 @@
-# Slideshow
+# Slideshow Gallery
 
-A self-hosted web application for displaying photo slideshows from multiple sources. Supports local folders, Dropbox, and Plex media servers. Designed to run on your local network so any device with a browser can display your photos.
+Slideshow is a self-hosted photo slideshow app for a local network. It lets you connect photo sources, curate playlists, and run a fullscreen display view that stays accessible even when the admin UI is password protected.
 
-## Features
+## What It Supports
 
-- **Multiple source types** -- Add photos from local directories, Dropbox accounts, or Plex photo libraries
-- **Plex album browsing** -- Browse Plex photo libraries by album with drill-down navigation; select individual albums or entire libraries
-- **Playlists** -- Organize sources into playlists and pick which images to include
-- **Slideshow display** -- Full-screen slideshow with configurable interval, transition effects (fade, slide, none), and sequential or random ordering
-- **Image caching** -- Downloaded images are cached locally with thumbnail generation for fast browsing
-- **Optional authentication** -- Password-protect the admin UI while keeping the slideshow display publicly accessible on your network
-- **Responsive UI** -- Dark theme with glassmorphism design, works on desktop and mobile
+- Local folders on the machine running the server
+- Dropbox folders via OAuth
+- Plex photo libraries and album browsing
+- Source-level and playlist-level photo selection
+- Fullscreen slideshow playback with interval, order, and transition controls
+- Local thumbnail generation and remote image caching
+- Optional admin authentication for Sources, Playlists, and Settings
 
-## Prerequisites
+## Tech Stack
 
-- [Node.js](https://nodejs.org/) v18 or later
+- Backend: Node.js, Express, better-sqlite3
+- Frontend: Vanilla JavaScript modules and CSS
+- Image processing: Sharp
+- Integrations: Dropbox SDK and Plex HTTP APIs
+
+## Requirements
+
+- Node.js 18+
 
 ## Getting Started
 
 ```bash
-# Install dependencies
 npm install
-
-# Start the server
+cp .env.example .env
 npm start
 ```
 
-The server starts on `http://0.0.0.0:3000` by default and prints any LAN IP addresses for easy access from other devices.
+By default the server listens on `http://0.0.0.0:3000` and prints LAN-accessible URLs on startup.
 
-### Configuration
+## Main Workflow
 
-Copy the example environment file and adjust as needed:
+1. Open the app in a browser.
+2. Go to **Sources** and use the guided source wizard.
+3. Scan the source and review which photos are selected.
+4. Optionally create playlists from your connected sources.
+5. Open **Slideshow** to start playback.
 
-```bash
-cp .env.example .env
-```
+## Authentication Behavior
 
-| Variable   | Default       | Description           |
-|------------|---------------|-----------------------|
-| `PORT`     | `3000`        | Server listen port    |
-| `HOST`     | `0.0.0.0`     | Server bind address   |
-| `NODE_ENV` | `development` | Node environment mode |
+Authentication is optional.
 
-## Usage
+- When disabled, the entire admin UI is open.
+- When enabled, the admin screens require login.
+- The slideshow display, slideshow image endpoints, and the read-only settings needed for playback remain accessible so a TV or kiosk screen can keep running without signing in.
 
-1. Open the app in a browser and go to **Sources**
-2. Add a source (local folder, Dropbox, or Plex)
-3. Go to **Playlists** to create a playlist from your sources
-4. Open the **Slideshow** view to start displaying photos
-
-### Source Types
-
-| Type    | Description |
-|---------|-------------|
-| Local   | A folder on the server's filesystem. Supports subfolder scanning. |
-| Dropbox | Connect a Dropbox account via OAuth and select a folder. |
-| Plex    | Connect to a Plex server, browse photo libraries and albums. |
-
-### Authentication
-
-Authentication is optional. Set a password in **Settings** to protect the admin views (Sources, Playlists, Settings). The slideshow display and image endpoints remain publicly accessible so any screen on your network can show the slideshow without logging in.
-
-## Project Structure
-
-```
-├── server.js              # Entry point
-├── src/
-│   ├── app.js             # Express app setup
-│   ├── config/            # Constants and default settings
-│   ├── db/                # SQLite database (better-sqlite3) and migrations
-│   ├── middleware/         # Auth, security (Helmet, rate limiting), error handling
-│   ├── routes/            # API routes (sources, playlists, images, settings, etc.)
-│   └── services/          # Business logic (scanning, caching, Plex, Dropbox, etc.)
-├── public/
-│   ├── index.html         # SPA shell
-│   ├── css/               # Stylesheets
-│   └── js/                # Frontend (vanilla JS, ES modules)
-│       ├── app.js         # Router and view registration
-│       ├── api.js         # API client
-│       ├── views/         # Page views
-│       ├── components/    # Reusable UI components
-│       └── utils/         # Router, helpers
-└── data/                  # Runtime data (SQLite DB, cache, thumbnails) -- gitignored
-```
-
-## Tech Stack
-
-- **Backend:** Node.js, Express, better-sqlite3
-- **Frontend:** Vanilla JavaScript (ES modules), CSS
-- **Image processing:** Sharp
-- **Security:** Helmet, express-rate-limit, express-validator
-- **Integrations:** Dropbox SDK, Plex API
-
-## Development
+## Scripts
 
 ```bash
-# Start with auto-reload
-npm run dev
-
-# Run tests
-npm test
+npm run lint      # Lightweight syntax checks for app JS files
+npm test          # App-focused Jest suite
+npm run test:app  # Same as npm test
+npm run dev       # Start with nodemon
 ```
 
-## License
+## Project Layout
 
-This project does not currently specify a license.
+```text
+server.js
+src/
+|-- app.js
+|-- config/
+|-- db/
+|-- middleware/
+|-- routes/
+|-- services/
+\-- utils/
+public/
+|-- index.html
+|-- css/
+\-- js/
+data/             # Runtime database, cache, thumbnails, and keys
+```
+
+## Notes
+
+- App data is stored under `data/` by default.
+- Tests use an isolated temporary data directory and do not touch the real app database.
+- The admin UI is intentionally hash-routed and does not require a frontend build step.
+
+## Future Enhancements
+
+- Add Immich as a first-class source integration, with support for locally hosted Immich instances alongside local folders, Dropbox, and Plex.

@@ -6,49 +6,45 @@
 
 ## Overview
 
-<!--
-Document your project's backend directory structure here.
-
-Questions to answer:
-- How are modules/packages organized?
-- Where does business logic live?
-- Where are API endpoints defined?
-- How are utilities and helpers organized?
--->
-
-(To be filled by the team)
+The server code lives in `src/` and is organized by concern instead of by framework boilerplate.
 
 ---
 
 ## Directory Layout
 
-```
-<!-- Replace with your actual structure -->
+```text
 src/
-├── ...
-└── ...
+|-- app.js               # Express app factory
+|-- config/              # Constants and default setting values
+|-- db/                  # SQLite connection and migrations
+|-- middleware/          # Auth, security, validation, error handling
+|-- routes/              # HTTP route modules
+|-- services/            # Business logic and persistence workflows
+\-- utils/              # Small shared helpers
 ```
 
 ---
 
 ## Module Organization
 
-<!-- How should new features/modules be organized? -->
-
-(To be filled by the team)
+- `routes/` should stay thin and mostly delegate to services.
+- `services/` should own DB writes, integration logic, and cross-route business rules.
+- `db/` is the source of truth for schema and migration sequencing.
+- `utils/` is for small helpers, not hidden business logic.
 
 ---
 
 ## Naming Conventions
 
-<!-- File and folder naming rules -->
-
-(To be filled by the team)
+- Service modules use `{feature}Service.js`
+- Route modules use the feature/resource name
+- Utility modules should describe the one job they do
+- Migration logic stays centralized in `src/db/migrations.js`
 
 ---
 
 ## Examples
 
-<!-- Link to well-organized modules as examples -->
-
-(To be filled by the team)
+- `src/services/sourceService.js` coordinates source CRUD, scans, and selection persistence.
+- `src/services/playlistService.js` handles playlist/source/photo relationships.
+- `src/routes/settings.js` shows the preferred route pattern: validate, delegate, respond.

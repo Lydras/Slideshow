@@ -6,46 +6,40 @@
 
 ## Overview
 
-<!--
-Document your project's quality standards here.
-
-Questions to answer:
-- What patterns are forbidden?
-- What linting rules do you enforce?
-- What are your testing requirements?
-- What code review standards apply?
--->
-
-(To be filled by the team)
+Frontend quality in this project means readable modules, resilient async flows, and a consistent user experience in a no-build, vanilla JS environment.
 
 ---
 
 ## Forbidden Patterns
 
-<!-- Patterns that should never be used and why -->
-
-(To be filled by the team)
+- Parallel feature flows that do the same job in different ways.
+- Silent failures that only log to the console without giving the user any feedback.
+- Large HTML strings mixed with complicated business logic in the same block when a helper or component would simplify it.
+- Ad hoc DOM mutation spread across unrelated files.
 
 ---
 
 ## Required Patterns
 
-<!-- Patterns that must always be used -->
-
-(To be filled by the team)
+- Use `showToast` or an equivalent visible state for user-facing success/error events.
+- Keep fetch logic behind `api.js` so auth headers and error handling stay centralized.
+- Escape user-controlled text before interpolating it into HTML.
+- Always render an explicit empty state for collection screens.
 
 ---
 
 ## Testing Requirements
 
-<!-- What level of testing is expected -->
-
-(To be filled by the team)
+- Critical route/view behavior should be covered by app-focused tests when practical.
+- UI-only changes should still be verified manually on desktop and mobile widths.
+- Any workflow that creates or deletes persisted data must be tested against its edge cases.
 
 ---
 
 ## Code Review Checklist
 
-<!-- What reviewers should check -->
-
-(To be filled by the team)
+- Does the view keep a single primary user path?
+- Are loading, empty, and error states clear?
+- Are button labels and section headings user-friendly?
+- Does the change preserve auth handling and route consistency?
+- Does the UI still work on narrow screens?

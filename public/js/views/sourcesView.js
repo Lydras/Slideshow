@@ -9,58 +9,101 @@ import { getHashParams, navigateTo } from '../utils/router.js';
 export async function renderSourcesView() {
   const viewContainer = $('#view');
   let sources = [];
-  let imageCounts = {};
+  const imageCounts = {};
 
   try {
     sources = await api.getSources();
-    // Load image counts for all sources
-    const countPromises = sources.map(s =>
-      api.getSourceImageCounts(s.id).then(c => ({ id: s.id, ...c })).catch(() => ({ id: s.id, total: 0, selected: 0 }))
+    const countPromises = sources.map(source =>
+      api.getSourceImageCounts(source.id)
+        .then(counts => ({ id: source.id, ...counts }))
+        .catch(() => ({ id: source.id, total: 0, selected: 0 }))
     );
     const counts = await Promise.all(countPromises);
-    for (const c of counts) {
-      imageCounts[c.id] = c;
+    for (const item of counts) {
+      imageCounts[item.id] = item;
     }
   } catch (err) {
     showToast('Failed to load sources', 'error');
   }
 
+  const totals = sources.reduce((acc, source) => {
+    const counts = imageCounts[source.id] || { total: 0, selected: 0 };
+    acc.totalImages += counts.total;
+    acc.selectedImages += counts.selected;
+    acc.byType[source.type] = (acc.byType[source.type] || 0) + 1;
+    return acc;
+  }, { totalImages: 0, selectedImages: 0, byType: {} });
+
   viewContainer.innerHTML = `
-    <div class="view-container">
-      <div class="flex-between mb-2">
-        <h1>Sources</h1>
-        <button class="btn-primary" id="btn-add-source">+ Add Source</button>
-      </div>
-      <div class="source-list" id="source-list">
-        ${sources.length === 0 ? `
-          <div class="empty-state">
-            <p>No sources configured. Add a source to get started.</p>
+    <div class="page-shell">
+      <section class="page-hero">
+        <div>
+          <p class="page-kicker">Library</p>
+          <div class="page-title-row">
+            <h1>Photo Sources</h1>
+            <span class="pill">${sources.length} connected</span>
           </div>
-        ` : sources.map(s => renderSourceCard(s, imageCounts[s.id])).join('')}
-      </div>
+          <p class="page-subtitle">Connect local folders, Dropbox accounts, and Plex libraries, then decide which photos are eligible for the slideshow.</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn-secondary" id="btn-refresh-sources">Refresh</button>
+          <button class="btn-primary" id="btn-add-source">Add Source</button>
+        </div>
+      </section>
+
+      <section class="stats-grid">
+        <article class="stat-card">
+          <div class="stat-label">Connected sources</div>
+          <div class="stat-value">${sources.length}</div>
+          <div class="stat-meta">${(totals.byType.local || 0)} local, ${(totals.byType.dropbox || 0)} Dropbox, ${(totals.byType.plex || 0)} Plex</div>
+        </article>
+        <article class="stat-card">
+          <div class="stat-label">Photos discovered</div>
+          <div class="stat-value">${totals.totalImages}</div>
+          <div class="stat-meta">Across every configured source</div>
+        </article>
+        <article class="stat-card">
+          <div class="stat-label">Selected for use</div>
+          <div class="stat-value">${totals.selectedImages}</div>
+          <div class="stat-meta">Photos currently eligible for playlists and slideshow playback</div>
+        </article>
+      </section>
+
+      ${sources.length === 0 ? `
+        <section class="empty-panel">
+          <h2>Start by connecting a photo source</h2>
+          <p>Use the guided flow to browse a local folder, authenticate Dropbox, or pick a Plex library. You can review photos before saving the source.</p>
+          <div class="empty-actions">
+            <button class="btn-primary" id="btn-empty-add-source">Add your first source</button>
+            <a class="btn-secondary" href="#/slideshow">Open slideshow view</a>
+          </div>
+        </section>
+      ` : `
+        <section class="source-grid" id="source-list">
+          ${sources.map(source => renderSourceCard(source, imageCounts[source.id] || { total: 0, selected: 0 })).join('')}
+        </section>
+      `}
     </div>
-    <div id="source-modal"></div>
   `;
 
-  // Bind add button - opens wizard
-  $('#btn-add-source').addEventListener('click', () => {
+  $('#btn-add-source')?.addEventListener('click', () => {
     openSourceWizard({ onComplete: () => renderSourcesView() });
   });
+  $('#btn-empty-add-source')?.addEventListener('click', () => {
+    openSourceWizard({ onComplete: () => renderSourcesView() });
+  });
+  $('#btn-refresh-sources')?.addEventListener('click', () => renderSourcesView());
 
-  // Bind card actions
   bindCardActions();
 
-  // Check if returning from Dropbox OAuth callback
   const params = getHashParams();
   if (params.dropbox_credential_id) {
-    // Clean the URL so a page refresh won't re-trigger the wizard
     navigateTo('#/sources');
-    // Auto-open wizard pre-filled with the Dropbox credential
     openSourceWizard({
       initialState: {
         sourceType: 'dropbox',
         credentialId: parseInt(params.dropbox_credential_id, 10),
-        step: 3, // Skip to folder browse
+        step: 3,
       },
       onComplete: () => renderSourcesView(),
     });
@@ -75,24 +118,44 @@ function renderSourceCard(source, counts) {
     dropbox: '<span class="badge badge-dropbox">Dropbox</span>',
     plex: '<span class="badge badge-plex">Plex</span>',
   };
-  const countText = counts ? `${counts.selected}/${counts.total} photos` : '';
+
+  const emptyTip = counts.total === 0
+    ? '<p class="source-empty-tip">This source has not been scanned yet.</p>'
+    : '';
+
   return `
-    <div class="card source-card" data-id="${source.id}">
-      <div class="source-info">
-        <h3>${escapeHtml(source.name)} ${badges[source.type] || ''}</h3>
-        <div class="source-path">${escapeHtml(source.path)}</div>
-        <div class="source-meta">
-          Subfolders: ${source.include_subfolders ? 'Yes' : 'No'}
-          ${countText ? ` &middot; ${countText}` : ''}
+    <article class="card source-card" data-id="${source.id}">
+      <div class="source-card-header">
+        <div class="source-title-stack">
+          <div class="page-title-row">
+            <h2>${escapeHtml(source.name)}</h2>
+            ${badges[source.type] || ''}
+          </div>
+          <p class="source-path">${escapeHtml(source.path)}</p>
         </div>
       </div>
+      <div class="source-metrics">
+        <div class="source-metric">
+          <div class="source-metric-label">Selected</div>
+          <div class="source-metric-value">${counts.selected}</div>
+        </div>
+        <div class="source-metric">
+          <div class="source-metric-label">Discovered</div>
+          <div class="source-metric-value">${counts.total}</div>
+        </div>
+        <div class="source-metric">
+          <div class="source-metric-label">Subfolders</div>
+          <div class="source-metric-value">${source.include_subfolders ? 'On' : 'Off'}</div>
+        </div>
+      </div>
+      ${emptyTip}
       <div class="source-actions">
-        <button class="btn-secondary btn-small btn-photos" data-id="${source.id}">Photos</button>
+        <button class="btn-secondary btn-small btn-photos" data-id="${source.id}">Review Photos</button>
         <button class="btn-secondary btn-small btn-scan" data-id="${source.id}">Scan</button>
         <button class="btn-secondary btn-small btn-edit" data-id="${source.id}">Edit</button>
         <button class="btn-danger btn-small btn-delete" data-id="${source.id}">Delete</button>
       </div>
-    </div>
+    </article>
   `;
 }
 
@@ -103,7 +166,7 @@ function bindCardActions() {
       try {
         const images = await api.getSourceImages(id);
         if (images.length === 0) {
-          showToast('No images cached. Scan the source first.', 'info');
+          showToast('No photos are cached yet. Scan the source first.', 'info');
           return;
         }
         showPhotoManagementModal(id, images);
@@ -124,9 +187,9 @@ function bindCardActions() {
         renderSourcesView();
       } catch (err) {
         showToast(err.message, 'error');
+        btn.disabled = false;
+        btn.textContent = 'Scan';
       }
-      btn.disabled = false;
-      btn.textContent = 'Scan';
     });
   });
 
@@ -157,7 +220,6 @@ function bindCardActions() {
 
 function showPhotoManagementModal(sourceId, images) {
   const content = document.createElement('div');
-
   const picker = createPhotoPicker({
     images,
     onSelectionChange: () => {},
@@ -167,20 +229,17 @@ function showPhotoManagementModal(sourceId, images) {
 
   const saveBtn = document.createElement('button');
   saveBtn.className = 'btn-primary';
-  saveBtn.style.marginTop = '0.75rem';
+  saveBtn.style.marginTop = '0.85rem';
   saveBtn.textContent = 'Save Selection';
   saveBtn.addEventListener('click', async () => {
     saveBtn.disabled = true;
     saveBtn.textContent = 'Saving...';
     try {
       const selectedIds = picker.getSelectedIds();
-
-      // Deselect all first, then select the chosen ones
       await api.updateBulkImageSelection(sourceId, 0);
       if (selectedIds.length > 0) {
         await api.updateBulkImageSelection(sourceId, 1, selectedIds);
       }
-
       showToast('Photo selection saved', 'success');
       modal.close();
       renderSourcesView();
@@ -190,89 +249,57 @@ function showPhotoManagementModal(sourceId, images) {
       saveBtn.textContent = 'Save Selection';
     }
   });
+
   content.appendChild(saveBtn);
 
   const modal = showModal({
-    title: 'Manage Photos',
+    title: 'Review Source Photos',
     content,
   });
-
-  // Widen modal for photo grid
-  const modalContent = modal.body.closest('.modal-content');
-  if (modalContent) {
-    modalContent.style.maxWidth = '850px';
-  }
 }
 
 function showEditSourceModal(source) {
-  showSourceModal('Edit Source', source, async (data) => {
-    await api.updateSource(source.id, data);
-    showToast('Source updated', 'success');
-    renderSourcesView();
-  });
-}
-
-function showSourceModal(title, source, onSave) {
-  const modal = $('#source-modal');
-  modal.innerHTML = `
-    <div class="modal-overlay" id="modal-overlay">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h2>${title}</h2>
-          <button class="modal-close" id="modal-close">&times;</button>
-        </div>
-        <form id="source-form">
-          <div class="form-group">
-            <label for="source-name">Name</label>
-            <input type="text" id="source-name" value="${escapeHtml(source.name || '')}" required>
-          </div>
-          <div class="form-group">
-            <label for="source-type">Type</label>
-            <select id="source-type" disabled>
-              <option value="local" ${source.type === 'local' ? 'selected' : ''}>Local</option>
-              <option value="dropbox" ${source.type === 'dropbox' ? 'selected' : ''}>Dropbox</option>
-              <option value="plex" ${source.type === 'plex' ? 'selected' : ''}>Plex</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label for="source-path">Path</label>
-            <input type="text" id="source-path" value="${escapeHtml(source.path || '')}" required
-              placeholder="e.g., C:\\Photos or /dropbox/folder">
-          </div>
-          <div class="form-group">
-            <div class="checkbox-group">
-              <input type="checkbox" id="source-subfolders" ${source.include_subfolders !== 0 ? 'checked' : ''}>
-              <label for="source-subfolders" style="margin:0">Include subfolders</label>
-            </div>
-          </div>
-          <div class="settings-actions">
-            <button type="submit" class="btn-primary">Save</button>
-            <button type="button" class="btn-secondary" id="modal-cancel">Cancel</button>
-          </div>
-        </form>
+  const content = document.createElement('form');
+  content.innerHTML = `
+    <div class="form-group">
+      <label for="source-name">Name</label>
+      <input type="text" id="source-name" value="${escapeHtml(source.name || '')}" required>
+    </div>
+    <div class="form-group">
+      <label for="source-path">Path</label>
+      <input type="text" id="source-path" value="${escapeHtml(source.path || '')}" required>
+    </div>
+    <div class="form-group">
+      <div class="checkbox-group">
+        <input type="checkbox" id="source-subfolders" ${source.include_subfolders !== 0 ? 'checked' : ''}>
+        <label for="source-subfolders">Include subfolders</label>
       </div>
+    </div>
+    <div class="settings-actions">
+      <button type="submit" class="btn-primary">Save Changes</button>
+      <button type="button" class="btn-secondary" id="source-cancel">Cancel</button>
     </div>
   `;
 
-  const close = () => { modal.innerHTML = ''; };
-  $('#modal-close').addEventListener('click', close);
-  $('#modal-cancel').addEventListener('click', close);
-  $('#modal-overlay').addEventListener('click', (e) => {
-    if (e.target === e.currentTarget) close();
+  const modal = showModal({
+    title: `Edit ${source.name}`,
+    content,
   });
 
-  $('#source-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
+  content.querySelector('#source-cancel').addEventListener('click', () => modal.close());
+  content.addEventListener('submit', async (event) => {
+    event.preventDefault();
     try {
-      await onSave({
-        name: $('#source-name').value,
-        path: $('#source-path').value,
-        include_subfolders: $('#source-subfolders').checked ? 1 : 0,
+      await api.updateSource(source.id, {
+        name: content.querySelector('#source-name').value,
+        path: content.querySelector('#source-path').value,
+        include_subfolders: content.querySelector('#source-subfolders').checked ? 1 : 0,
       });
-      close();
+      modal.close();
+      showToast('Source updated', 'success');
+      renderSourcesView();
     } catch (err) {
       showToast(err.message, 'error');
     }
   });
 }
-

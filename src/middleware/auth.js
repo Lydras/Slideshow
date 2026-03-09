@@ -1,36 +1,24 @@
 const { isAuthEnabled, isValidSession } = require('../services/authService');
 
-// Routes that don't require authentication (slideshow display mode)
-const PUBLIC_PATHS = [
-  '/auth',          // Auth endpoints themselves
-  '/images',        // Image serving and slideshow data (GET only)
-  '/settings',      // Settings read needed for slideshow config (GET only)
-];
+function isPublicRequest(req) {
+  const path = req.path;
+
+  if (path.startsWith('/auth')) return true;
+  if (path === '/dropbox/callback') return true;
+
+  if (req.method !== 'GET') return false;
+  if (path === '/' || path === '/settings') return true;
+  if (path === '/images' || path.startsWith('/images/')) return true;
+  if (path.startsWith('/plex/') && path.endsWith('/thumb')) return true;
+
+  return false;
+}
 
 function requireAuth(req, res, next) {
-  // If auth is not configured, allow everything
-  if (!isAuthEnabled()) {
+  if (!isAuthEnabled() || isPublicRequest(req)) {
     return next();
   }
 
-  // Allow public paths
-  const path = req.path;
-
-  // Auth routes are always public
-  if (path.startsWith('/auth')) return next();
-
-  // OAuth callbacks are public (browser redirects carry no auth token)
-  if (path === '/dropbox/callback') return next();
-
-  // GET requests for slideshow display are public
-  if (req.method === 'GET') {
-    if (path === '/' || path === '/images' || path.startsWith('/images/')) return next();
-    if (path === '/settings') return next();
-    // Plex thumbnail proxy (used by <img> tags which can't send auth headers)
-    if (path.startsWith('/plex/') && path.endsWith('/thumb')) return next();
-  }
-
-  // Everything else requires authentication
   const auth = req.headers.authorization;
   const token = auth && auth.startsWith('Bearer ') ? auth.slice(7) : null;
 
@@ -41,4 +29,4 @@ function requireAuth(req, res, next) {
   next();
 }
 
-module.exports = { requireAuth };
+module.exports = { requireAuth, isPublicRequest };

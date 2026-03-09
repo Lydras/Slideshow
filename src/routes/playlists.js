@@ -98,19 +98,22 @@ router.post(
   }
 );
 
-router.delete('/:id/sources', (req, res) => {
-  const id = parseIntParam(req, res, 'id');
-  if (id === null) return;
-  const playlist = getPlaylist(id);
-  if (!playlist) return res.status(404).json({ error: { message: 'Playlist not found' } });
-  if (!req.body.source_id) {
-    return res.status(400).json({ error: { message: 'source_id is required' } });
+router.delete(
+  '/:id/sources',
+  [
+    body('source_id').isInt().withMessage('source_id is required'),
+    validate,
+  ],
+  (req, res) => {
+    const id = parseIntParam(req, res, 'id');
+    if (id === null) return;
+    const playlist = getPlaylist(id);
+    if (!playlist) return res.status(404).json({ error: { message: 'Playlist not found' } });
+    const updated = removeSource(id, req.body.source_id);
+    res.json(updated);
   }
-  const updated = removeSource(id, req.body.source_id);
-  res.json(updated);
-});
+);
 
-// Playlist image selection endpoints
 router.get('/:id/images', (req, res) => {
   const id = parseIntParam(req, res, 'id');
   if (id === null) return;
@@ -119,20 +122,23 @@ router.get('/:id/images', (req, res) => {
   res.json(getPlaylistImages(id));
 });
 
-router.put('/:id/images', (req, res) => {
-  const id = parseIntParam(req, res, 'id');
-  if (id === null) return;
-  const playlist = getPlaylist(id);
-  if (!playlist) return res.status(404).json({ error: { message: 'Playlist not found' } });
+router.put(
+  '/:id/images',
+  [
+    body('image_ids').isArray().withMessage('image_ids must be an array'),
+    body('image_ids.*').optional().isInt().withMessage('image_ids must contain integers only'),
+    validate,
+  ],
+  (req, res) => {
+    const id = parseIntParam(req, res, 'id');
+    if (id === null) return;
+    const playlist = getPlaylist(id);
+    if (!playlist) return res.status(404).json({ error: { message: 'Playlist not found' } });
 
-  const { image_ids } = req.body;
-  if (!Array.isArray(image_ids)) {
-    return res.status(400).json({ error: { message: 'image_ids must be an array' } });
+    setPlaylistImages(id, req.body.image_ids);
+    res.json({ message: 'Playlist images updated' });
   }
-
-  setPlaylistImages(id, image_ids);
-  res.json({ message: 'Playlist images updated' });
-});
+);
 
 router.delete('/:id/images', (req, res) => {
   const id = parseIntParam(req, res, 'id');

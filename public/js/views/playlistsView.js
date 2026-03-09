@@ -23,24 +23,68 @@ export async function renderPlaylistsView() {
     showToast('Failed to load playlists', 'error');
   }
 
+  const totalAssignments = playlists.reduce((sum, playlist) => sum + (playlist.sources || []).length, 0);
+  const activePlaylist = playlists.find(playlist => String(playlist.id) === String(activePlaylistId));
+
   viewContainer.innerHTML = `
-    <div class="view-container">
-      <div class="flex-between mb-2">
-        <h1>Playlists</h1>
-        <button class="btn-primary" id="btn-add-playlist">+ New Playlist</button>
-      </div>
-      <div class="playlist-list" id="playlist-list">
-        ${playlists.length === 0 ? `
-          <div class="empty-state">
-            <p>No playlists yet. Create one to organize your sources.</p>
+    <div class="page-shell">
+      <section class="page-hero">
+        <div>
+          <p class="page-kicker">Curate</p>
+          <div class="page-title-row">
+            <h1>Playlists</h1>
+            <span class="pill">${playlists.length} saved</span>
           </div>
-        ` : playlists.map(p => renderPlaylistCard(p, sources)).join('')}
-      </div>
+          <p class="page-subtitle">Group sources into curated collections, choose a default playlist, and fine-tune which photos appear for each story.</p>
+        </div>
+        <div class="page-actions">
+          ${activePlaylist ? `<span class="pill playlist-active-badge">Active: ${escapeHtml(activePlaylist.name)}</span>` : ''}
+          <button class="btn-primary" id="btn-add-playlist">New Playlist</button>
+        </div>
+      </section>
+
+      <section class="stats-grid">
+        <article class="stat-card">
+          <div class="stat-label">Playlists</div>
+          <div class="stat-value">${playlists.length}</div>
+          <div class="stat-meta">Collections ready for slideshow playback</div>
+        </article>
+        <article class="stat-card">
+          <div class="stat-label">Source assignments</div>
+          <div class="stat-value">${totalAssignments}</div>
+          <div class="stat-meta">Total source links across all playlists</div>
+        </article>
+        <article class="stat-card">
+          <div class="stat-label">Current default</div>
+          <div class="stat-value">${activePlaylist ? '1' : '0'}</div>
+          <div class="stat-meta">${activePlaylist ? escapeHtml(activePlaylist.name) : 'No playlist is active right now'}</div>
+        </article>
+      </section>
+
+      ${playlists.length === 0 ? `
+        <section class="empty-panel">
+          <h2>Create a playlist once your sources are ready</h2>
+          <p>Playlists let you switch between curated groups of sources and optional photo-level overrides for specific slideshow moments.</p>
+          <div class="empty-actions">
+            <button class="btn-primary" id="btn-empty-add-playlist">Create Playlist</button>
+            <a class="btn-secondary" href="#/sources">Review sources</a>
+          </div>
+        </section>
+      ` : `
+        <section class="playlist-grid">
+          ${playlists.map(playlist => renderPlaylistCard(playlist, sources)).join('')}
+        </section>
+      `}
     </div>
-    <div id="playlist-modal"></div>
   `;
 
-  $('#btn-add-playlist').addEventListener('click', () => showPlaylistModal('New Playlist', {}, async (data) => {
+  $('#btn-add-playlist')?.addEventListener('click', () => showPlaylistModal('New Playlist', {}, async (data) => {
+    await api.createPlaylist(data);
+    showToast('Playlist created', 'success');
+    renderPlaylistsView();
+  }));
+
+  $('#btn-empty-add-playlist')?.addEventListener('click', () => showPlaylistModal('New Playlist', {}, async (data) => {
     await api.createPlaylist(data);
     showToast('Playlist created', 'success');
     renderPlaylistsView();
@@ -53,34 +97,34 @@ export async function renderPlaylistsView() {
 
 function renderPlaylistCard(playlist, sources) {
   const isActive = String(playlist.id) === String(activePlaylistId);
-  const playlistSources = (playlist.sources || []).map(ps => {
-    const src = sources.find(s => s.id === ps.source_id);
-    return src ? src.name : `Source #${ps.source_id}`;
+  const playlistSources = (playlist.sources || []).map(item => {
+    const source = sources.find(entry => entry.id === item.source_id);
+    return source ? source.name : `Source #${item.source_id}`;
   });
 
   return `
-    <div class="card playlist-card" data-id="${playlist.id}">
+    <article class="card playlist-card" data-id="${playlist.id}">
       <div class="playlist-info">
-        <h3>
-          ${escapeHtml(playlist.name)}
-          ${isActive ? '<span class="playlist-active-badge">Active</span>' : ''}
-        </h3>
-        ${playlist.description ? `<div class="playlist-description">${escapeHtml(playlist.description)}</div>` : ''}
-        <div class="playlist-sources-count">${playlistSources.length} source(s)</div>
+        <div class="page-title-row">
+          <h2>${escapeHtml(playlist.name)}</h2>
+          ${isActive ? '<span class="pill playlist-active-badge">Active</span>' : ''}
+        </div>
+        ${playlist.description ? `<p class="playlist-description">${escapeHtml(playlist.description)}</p>` : '<p class="playlist-description">No description yet.</p>'}
+        <div class="playlist-sources-count">${playlistSources.length} source${playlistSources.length === 1 ? '' : 's'} connected</div>
         ${playlistSources.length > 0 ? `
-          <div class="playlist-sources-list">
-            ${playlistSources.map(name => `<div class="playlist-source-item">${escapeHtml(name)}</div>`).join('')}
+          <div class="playlist-source-chip-list">
+            ${playlistSources.map(name => `<span class="playlist-source-item">${escapeHtml(name)}</span>`).join('')}
           </div>
         ` : ''}
       </div>
       <div class="playlist-actions">
-        ${!isActive ? `<button class="btn-secondary btn-small btn-activate" data-id="${playlist.id}">Activate</button>` : `<button class="btn-secondary btn-small btn-deactivate" data-id="${playlist.id}">Deactivate</button>`}
-        <button class="btn-secondary btn-small btn-photos-playlist" data-id="${playlist.id}">Photos</button>
+        ${!isActive ? `<button class="btn-secondary btn-small btn-activate" data-id="${playlist.id}">Set Active</button>` : `<button class="btn-secondary btn-small btn-deactivate" data-id="${playlist.id}">Deactivate</button>`}
+        <button class="btn-secondary btn-small btn-photos-playlist" data-id="${playlist.id}">Review Photos</button>
         <button class="btn-secondary btn-small btn-edit-playlist" data-id="${playlist.id}">Edit</button>
-        <button class="btn-secondary btn-small btn-manage-sources" data-id="${playlist.id}">Sources</button>
+        <button class="btn-secondary btn-small btn-manage-sources" data-id="${playlist.id}">Manage Sources</button>
         <button class="btn-danger btn-small btn-delete-playlist" data-id="${playlist.id}">Delete</button>
       </div>
-    </div>
+    </article>
   `;
 }
 
@@ -113,7 +157,7 @@ function bindPlaylistActions(sources) {
     btn.addEventListener('click', async () => {
       try {
         const playlist = await api.getPlaylist(btn.dataset.id);
-        showPlaylistModal('Edit Playlist', playlist, async (data) => {
+        showPlaylistModal(`Edit ${playlist.name}`, playlist, async (data) => {
           await api.updatePlaylist(playlist.id, data);
           showToast('Playlist updated', 'success');
           renderPlaylistsView();
@@ -164,14 +208,12 @@ async function showPlaylistPhotosModal(playlistId) {
   const playlist = await api.getPlaylist(playlistId);
   if (!playlist) return;
 
-  // Get all selected images from all sources in this playlist
-  const sourceIds = (playlist.sources || []).map(s => s.source_id);
+  const sourceIds = (playlist.sources || []).map(source => source.source_id);
   if (sourceIds.length === 0) {
     showToast('Add sources to this playlist first', 'info');
     return;
   }
 
-  // Load images from all sources in the playlist
   const allImages = [];
   for (const sourceId of sourceIds) {
     try {
@@ -179,20 +221,17 @@ async function showPlaylistPhotosModal(playlistId) {
       const selectedImages = images.filter(img => img.selected === 1);
       allImages.push(...selectedImages);
     } catch {
-      // Skip failed sources
+      // Skip sources that fail to load.
     }
   }
 
   if (allImages.length === 0) {
-    showToast('No photos available. Scan your sources first.', 'info');
+    showToast('No photos are available yet. Scan your sources first.', 'info');
     return;
   }
 
-  // Check for existing playlist-specific selections
   const existingSelections = await api.getPlaylistImages(playlistId);
-  const existingImageIds = new Set(existingSelections.map(s => s.image_id));
-
-  // If there are playlist-specific selections, mark images accordingly
+  const existingImageIds = new Set(existingSelections.map(selection => selection.image_id));
   const imagesWithSelection = allImages.map(img => ({
     ...img,
     selected: existingImageIds.size > 0 ? (existingImageIds.has(img.id) ? 1 : 0) : 1,
@@ -201,9 +240,9 @@ async function showPlaylistPhotosModal(playlistId) {
   const content = document.createElement('div');
 
   if (existingImageIds.size > 0) {
-    const notice = document.createElement('div');
-    notice.style.cssText = 'font-size:0.85rem;color:var(--text-secondary);margin-bottom:0.5rem;';
-    notice.textContent = 'This playlist has custom photo selections. Changes here override source-level selections for this playlist.';
+    const notice = document.createElement('p');
+    notice.className = 'inline-note mb-1';
+    notice.textContent = 'Custom picks are enabled for this playlist. Saving here overrides the default source selections for this playlist only.';
     content.appendChild(notice);
   }
 
@@ -213,8 +252,8 @@ async function showPlaylistPhotosModal(playlistId) {
   });
   content.appendChild(picker.element);
 
-  const btnRow = document.createElement('div');
-  btnRow.style.cssText = 'display:flex;gap:0.5rem;margin-top:0.75rem;';
+  const actionRow = document.createElement('div');
+  actionRow.className = 'settings-actions';
 
   const saveBtn = document.createElement('button');
   saveBtn.className = 'btn-primary';
@@ -224,10 +263,9 @@ async function showPlaylistPhotosModal(playlistId) {
     saveBtn.textContent = 'Saving...';
     try {
       const selectedIds = picker.getSelectedIds();
-      // If all images selected, clear custom selections (use source defaults)
       if (selectedIds.length === allImages.length) {
         await api.clearPlaylistImages(playlistId);
-        showToast('Using source default selections', 'success');
+        showToast('Playlist now uses source defaults', 'success');
       } else {
         await api.setPlaylistImages(playlistId, selectedIds);
         showToast('Playlist photo selection saved', 'success');
@@ -240,10 +278,10 @@ async function showPlaylistPhotosModal(playlistId) {
     }
   });
 
-  const clearBtn = document.createElement('button');
-  clearBtn.className = 'btn-secondary';
-  clearBtn.textContent = 'Reset to Source Defaults';
-  clearBtn.addEventListener('click', async () => {
+  const resetBtn = document.createElement('button');
+  resetBtn.className = 'btn-secondary';
+  resetBtn.textContent = 'Reset to Source Defaults';
+  resetBtn.addEventListener('click', async () => {
     try {
       await api.clearPlaylistImages(playlistId);
       showToast('Playlist reset to source defaults', 'success');
@@ -253,63 +291,43 @@ async function showPlaylistPhotosModal(playlistId) {
     }
   });
 
-  btnRow.appendChild(saveBtn);
-  btnRow.appendChild(clearBtn);
-  content.appendChild(btnRow);
+  actionRow.appendChild(saveBtn);
+  actionRow.appendChild(resetBtn);
+  content.appendChild(actionRow);
 
   const modal = showModal({
-    title: `Photos - ${playlist.name}`,
+    title: `Playlist Photos: ${playlist.name}`,
     content,
   });
-
-  const modalContent = modal.body.closest('.modal-content');
-  if (modalContent) {
-    modalContent.style.maxWidth = '850px';
-  }
 }
 
 function showPlaylistModal(title, playlist, onSave) {
-  const modal = $('#playlist-modal');
-  modal.innerHTML = `
-    <div class="modal-overlay" id="modal-overlay">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h2>${title}</h2>
-          <button class="modal-close" id="modal-close">&times;</button>
-        </div>
-        <form id="playlist-form">
-          <div class="form-group">
-            <label for="playlist-name">Name</label>
-            <input type="text" id="playlist-name" value="${escapeHtml(playlist.name || '')}" required>
-          </div>
-          <div class="form-group">
-            <label for="playlist-description">Description</label>
-            <textarea id="playlist-description" rows="3">${escapeHtml(playlist.description || '')}</textarea>
-          </div>
-          <div class="settings-actions">
-            <button type="submit" class="btn-primary">Save</button>
-            <button type="button" class="btn-secondary" id="modal-cancel">Cancel</button>
-          </div>
-        </form>
-      </div>
+  const content = document.createElement('form');
+  content.innerHTML = `
+    <div class="form-group">
+      <label for="playlist-name">Name</label>
+      <input type="text" id="playlist-name" value="${escapeHtml(playlist.name || '')}" required>
+    </div>
+    <div class="form-group">
+      <label for="playlist-description">Description</label>
+      <textarea id="playlist-description" rows="4">${escapeHtml(playlist.description || '')}</textarea>
+    </div>
+    <div class="settings-actions">
+      <button type="submit" class="btn-primary">Save Playlist</button>
+      <button type="button" class="btn-secondary" id="playlist-cancel">Cancel</button>
     </div>
   `;
 
-  const close = () => { modal.innerHTML = ''; };
-  $('#modal-close').addEventListener('click', close);
-  $('#modal-cancel').addEventListener('click', close);
-  $('#modal-overlay').addEventListener('click', (e) => {
-    if (e.target === e.currentTarget) close();
-  });
-
-  $('#playlist-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
+  const modal = showModal({ title, content });
+  content.querySelector('#playlist-cancel').addEventListener('click', () => modal.close());
+  content.addEventListener('submit', async (event) => {
+    event.preventDefault();
     try {
       await onSave({
-        name: $('#playlist-name').value,
-        description: $('#playlist-description').value,
+        name: content.querySelector('#playlist-name').value,
+        description: content.querySelector('#playlist-description').value,
       });
-      close();
+      modal.close();
     } catch (err) {
       showToast(err.message, 'error');
     }
@@ -317,71 +335,68 @@ function showPlaylistModal(title, playlist, onSave) {
 }
 
 function showManageSourcesModal(playlist, allSources) {
-  const modal = $('#playlist-modal');
-  const playlistSourceIds = (playlist.sources || []).map(s => s.source_id);
+  const content = document.createElement('div');
+  const playlistSourceIds = (playlist.sources || []).map(source => source.source_id);
 
-  modal.innerHTML = `
-    <div class="modal-overlay" id="modal-overlay">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h2>Manage Sources - ${escapeHtml(playlist.name)}</h2>
-          <button class="modal-close" id="modal-close">&times;</button>
-        </div>
-        <div id="sources-checklist">
-          ${allSources.length === 0 ? '<p>No sources available. Add sources first.</p>' :
-            allSources.map(s => `
-              <div class="form-group">
-                <div class="checkbox-group">
-                  <input type="checkbox" id="src-${s.id}" data-source-id="${s.id}"
-                    ${playlistSourceIds.includes(s.id) ? 'checked' : ''}>
-                  <label for="src-${s.id}" style="margin:0">${escapeHtml(s.name)} (${s.type})</label>
-                </div>
-              </div>
-            `).join('')}
-        </div>
-        <div class="settings-actions mt-2">
-          <button class="btn-primary" id="save-sources">Save</button>
-          <button class="btn-secondary" id="modal-cancel">Cancel</button>
-        </div>
-      </div>
+  content.innerHTML = `
+    <p class="inline-note mb-1">Choose which sources feed this playlist. Photo-level overrides remain optional and can be adjusted separately.</p>
+    <div id="playlist-source-checklist" class="section-stack"></div>
+    <div class="settings-actions">
+      <button class="btn-primary" id="save-sources">Save Sources</button>
+      <button class="btn-secondary" id="cancel-sources">Cancel</button>
     </div>
   `;
 
-  const close = () => { modal.innerHTML = ''; };
-  $('#modal-close').addEventListener('click', close);
-  $('#modal-cancel').addEventListener('click', close);
-  $('#modal-overlay').addEventListener('click', (e) => {
-    if (e.target === e.currentTarget) close();
+  const checklist = content.querySelector('#playlist-source-checklist');
+  if (allSources.length === 0) {
+    checklist.innerHTML = '<div class="empty-panel"><h2>No sources available yet</h2><p>Add a source first, then come back to build this playlist.</p></div>';
+  } else {
+    checklist.innerHTML = allSources.map(source => `
+      <label class="card playlist-source-option">
+        <span>
+          <strong>${escapeHtml(source.name)}</strong><br>
+          <small>${escapeHtml(source.type)} source</small>
+        </span>
+        <input type="checkbox" data-source-id="${source.id}" ${playlistSourceIds.includes(source.id) ? 'checked' : ''}>
+      </label>
+    `).join('');
+  }
+
+  const modal = showModal({
+    title: `Manage Sources: ${playlist.name}`,
+    content,
   });
 
-  $('#save-sources').addEventListener('click', async () => {
+  content.querySelector('#cancel-sources').addEventListener('click', () => modal.close());
+  content.querySelector('#save-sources').addEventListener('click', async () => {
     try {
-      const checkboxes = document.querySelectorAll('#sources-checklist input[type="checkbox"]');
-      const selectedIds = new Set();
-      checkboxes.forEach(cb => {
-        if (cb.checked) selectedIds.add(parseInt(cb.dataset.sourceId));
+      const checkboxes = content.querySelectorAll('input[type="checkbox"][data-source-id]');
+      const selectedIds = [];
+      checkboxes.forEach(checkbox => {
+        if (checkbox.checked) {
+          selectedIds.push(parseInt(checkbox.dataset.sourceId, 10));
+        }
       });
 
-      // Remove unchecked
-      for (const srcId of playlistSourceIds) {
-        if (!selectedIds.has(srcId)) {
-          await api.removePlaylistSource(playlist.id, srcId);
+      for (const sourceId of playlistSourceIds) {
+        if (!selectedIds.includes(sourceId)) {
+          await api.removePlaylistSource(playlist.id, sourceId);
         }
-      }
-      // Add newly checked
-      let order = 0;
-      for (const srcId of selectedIds) {
-        if (!playlistSourceIds.includes(srcId)) {
-          await api.addPlaylistSource(playlist.id, srcId, order);
-        }
-        order++;
       }
 
+      for (let index = 0; index < selectedIds.length; index++) {
+        const sourceId = selectedIds[index];
+        if (!playlistSourceIds.includes(sourceId)) {
+          await api.addPlaylistSource(playlist.id, sourceId, index);
+        }
+      }
+
+      modal.close();
       showToast('Sources updated', 'success');
-      close();
       renderPlaylistsView();
     } catch (err) {
       showToast(err.message, 'error');
     }
   });
 }
+

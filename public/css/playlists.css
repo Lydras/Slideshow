@@ -1,65 +1,71 @@
-.playlist-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
+.playlist-list,
+.playlist-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1rem;
 }
 
 .playlist-card {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
+  flex-direction: column;
+  gap: 1rem;
 }
 
 .playlist-info {
-  flex: 1;
-}
-
-.playlist-info h3 {
-  font-size: 1rem;
-  margin-bottom: 0.3rem;
-  font-weight: 600;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
 }
 
 .playlist-description {
-  font-size: 0.8rem;
-  color: var(--text-secondary);
+  font-size: 0.92rem;
 }
 
 .playlist-sources-count {
-  font-size: 0.8rem;
   color: var(--text-muted);
-  margin-top: 0.3rem;
+  font-size: 0.84rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.playlist-source-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.playlist-source-item {
+  padding: 0.45rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  color: var(--text-secondary);
+  font-size: 0.8rem;
 }
 
 .playlist-actions {
   display: flex;
-  gap: 0.4rem;
-  flex-shrink: 0;
-  margin-left: 1rem;
-}
-
-.playlist-sources-list {
-  margin-top: 0.75rem;
-  padding-top: 0.75rem;
-  border-top: 1px solid var(--glass-border);
-}
-
-.playlist-source-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.4rem 0;
-  font-size: 0.85rem;
-  transition: background var(--transition);
+  gap: 0.55rem;
+  flex-wrap: wrap;
 }
 
 .playlist-active-badge {
-  background: rgba(46, 213, 115, 0.15);
-  color: var(--success);
-  font-size: 0.7rem;
-  font-weight: 600;
-  padding: 0.15rem 0.5rem;
-  border-radius: 12px;
-  margin-left: 0.5rem;
-  border: 1px solid rgba(46, 213, 115, 0.2);
+  color: var(--accent-strong);
+  border-color: rgba(138, 240, 210, 0.22);
+  background: rgba(138, 240, 210, 0.1);
 }
+
+@media (max-width: 640px) {
+  .playlist-list,
+  .playlist-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.playlist-source-option {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+

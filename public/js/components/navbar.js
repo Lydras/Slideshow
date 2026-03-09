@@ -11,15 +11,21 @@ export function renderNavbar() {
     { hash: '#/settings', label: 'Settings', icon: '&#9881;' },
   ];
 
-  const currentHash = getCurrentHash();
+  const currentHash = getCurrentHash().split('?')[0];
 
   nav.innerHTML = `
-    <div class="nav-brand">Slideshow</div>
+    <div class="nav-brand">
+      <div class="nav-mark">S</div>
+      <div class="nav-brand-copy">
+        <span class="nav-title">Slideshow</span>
+        <span class="nav-subtitle">Home gallery control</span>
+      </div>
+    </div>
     <div class="nav-links">
-      ${links.map(l => `
-        <a href="${l.hash}" class="nav-link ${currentHash === l.hash ? 'active' : ''}">
-          <span class="nav-icon">${l.icon}</span>
-          <span class="nav-label">${l.label}</span>
+      ${links.map(link => `
+        <a href="${link.hash}" class="nav-link ${currentHash === link.hash ? 'active' : ''}">
+          <span class="nav-icon">${link.icon}</span>
+          <span class="nav-label">${link.label}</span>
         </a>
       `).join('')}
     </div>

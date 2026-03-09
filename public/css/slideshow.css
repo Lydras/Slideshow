@@ -1,18 +1,17 @@
 .slideshow-container {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background: #000;
+  inset: 0;
+  background:
+    radial-gradient(circle at top left, rgba(138, 240, 210, 0.09), transparent 24%),
+    radial-gradient(circle at top right, rgba(146, 215, 255, 0.12), transparent 22%),
+    #020507;
   overflow: hidden;
   z-index: 100;
 }
 
 .slideshow-image {
   position: absolute;
-  top: 0;
-  left: 0;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: contain;
@@ -41,23 +40,64 @@
   transition: transform var(--slide-transition-duration, 0.5s) ease;
 }
 
+.slideshow-topbar {
+  position: absolute;
+  top: 1.2rem;
+  left: 1.2rem;
+  right: 1.2rem;
+  z-index: 110;
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 1rem;
+}
+
+.slideshow-topcard,
+.slideshow-controls {
+  background: rgba(7, 20, 27, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.slideshow-topcard {
+  padding: 0.85rem 1rem;
+  border-radius: 22px;
+  box-shadow: var(--shadow-md);
+}
+
+.slideshow-kicker {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.slideshow-counter {
+  color: var(--text-primary);
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.slideshow-hint {
+  margin-top: 0.2rem;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+}
+
 .slideshow-controls {
   position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  padding: 1.25rem 1.5rem;
-  background: rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  left: 50%;
+  bottom: 1.25rem;
+  transform: translateX(-50%);
+  z-index: 111;
   display: flex;
-  justify-content: center;
+  gap: 0.75rem;
   align-items: center;
-  gap: 1rem;
-  opacity: 1;
-  transition: opacity 0.3s ease;
-  z-index: 110;
+  padding: 0.7rem 0.8rem;
+  border-radius: 999px;
+  box-shadow: var(--shadow-md);
+  transition: opacity 180ms ease;
 }
 
 .slideshow-controls.hidden-controls {
@@ -66,57 +106,39 @@
 }
 
 .slideshow-controls button {
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  width: 44px;
-  height: 44px;
+  width: 46px;
+  height: 46px;
+  padding: 0;
   border-radius: 50%;
-  font-size: 1.1rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
 }
 
 .slideshow-controls button:hover {
-  background: rgba(255, 255, 255, 0.2);
-  border-color: rgba(255, 255, 255, 0.25);
-  box-shadow: 0 0 16px rgba(255, 255, 255, 0.1);
-  transform: scale(1.05);
-}
-
-.slideshow-counter {
-  color: rgba(255, 255, 255, 0.6);
-  font-size: 0.85rem;
-  min-width: 60px;
-  text-align: center;
-  font-weight: 500;
-}
-
-.slideshow-exit {
-  position: absolute;
-  top: 1rem;
-  right: 1rem;
-  z-index: 110;
-}
-
-.slideshow-exit button {
-  background: rgba(0, 0, 0, 0.3);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .slideshow-progress {
   position: absolute;
-  bottom: 0;
   left: 0;
-  height: 3px;
-  background: var(--accent);
-  box-shadow: 0 0 8px var(--accent-glow), 0 0 16px rgba(128, 255, 204, 0.15);
-  transition: width linear;
-  z-index: 111;
+  bottom: 0;
+  height: 4px;
+  width: 0;
+  background: linear-gradient(90deg, var(--accent), #9fd8ff);
+  box-shadow: 0 0 18px rgba(138, 240, 210, 0.45);
+  z-index: 112;
+}
+
+@media (max-width: 720px) {
+  .slideshow-topbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .slideshow-controls {
+    width: calc(100vw - 24px);
+    justify-content: center;
+    gap: 0.45rem;
+  }
 }

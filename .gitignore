@@ -9,6 +9,9 @@ data/thumbnails/
 *.log
 NUL
 .claude/skills/
+.agent/
+.agents/
+.cursor/
 
 # Auto Claude data directory
 .auto-claude/

@@ -3,14 +3,12 @@ const path = require('path');
 const crypto = require('crypto');
 const { CACHE_DIR, CACHE_MAX_SIZE_MB } = require('../config/constants');
 
-// Ensure cache directory exists
 if (!fs.existsSync(CACHE_DIR)) {
   fs.mkdirSync(CACHE_DIR, { recursive: true });
 }
 
 function getCacheKey(sourceId, filePath) {
-  const hash = crypto.createHash('md5').update(`${sourceId}:${filePath}`).digest('hex');
-  return hash;
+  return crypto.createHash('md5').update(`${sourceId}:${filePath}`).digest('hex');
 }
 
 function getCachePath(cacheKey, ext) {
@@ -19,13 +17,15 @@ function getCachePath(cacheKey, ext) {
 
 function getFromCache(sourceId, filePath) {
   const key = getCacheKey(sourceId, filePath);
-  // Try common extensions
-  for (const ext of ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tiff', '.avif', '']) {
+  for (const ext of ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tiff', '.avif', '.svg', '.ico', '']) {
     const cachePath = getCachePath(key, ext);
     if (fs.existsSync(cachePath)) {
-      // Update mtime for LRU eviction
       const now = new Date();
-      try { fs.utimesSync(cachePath, now, now); } catch (err) { console.warn('Cache mtime update failed:', err.message); }
+      try {
+        fs.utimesSync(cachePath, now, now);
+      } catch (err) {
+        console.warn('Cache mtime update failed:', err.message);
+      }
       return cachePath;
     }
   }
@@ -56,6 +56,7 @@ function contentTypeToExt(contentType) {
     'image/tiff': '.tiff',
     'image/avif': '.avif',
     'image/svg+xml': '.svg',
+    'image/x-icon': '.ico',
   };
   return map[contentType] || '.jpg';
 }
@@ -72,7 +73,9 @@ function getCacheStats() {
     try {
       const stat = fs.statSync(path.join(CACHE_DIR, file));
       totalSize += stat.size;
-    } catch (err) { console.warn('Cache stat failed:', err.message); }
+    } catch (err) {
+      console.warn('Cache stat failed:', err.message);
+    }
   }
 
   return {
@@ -93,7 +96,9 @@ function clearCache() {
     try {
       fs.unlinkSync(path.join(CACHE_DIR, file));
       deleted++;
-    } catch (err) { console.warn('Cache delete failed:', err.message); }
+    } catch (err) {
+      console.warn('Cache delete failed:', err.message);
+    }
   }
 
   return { deleted };
@@ -103,7 +108,6 @@ function evictIfNeeded() {
   const stats = getCacheStats();
   if (stats.sizeMB <= CACHE_MAX_SIZE_MB) return;
 
-  // LRU eviction: delete oldest-accessed files until under limit
   const files = fs.readdirSync(CACHE_DIR)
     .map(name => {
       const filePath = path.join(CACHE_DIR, name);
@@ -116,17 +120,19 @@ function evictIfNeeded() {
       }
     })
     .filter(Boolean)
-    .sort((a, b) => a.mtime - b.mtime); // oldest first
+    .sort((a, b) => a.mtime - b.mtime);
 
   let currentSize = stats.sizeBytes;
-  const targetSize = CACHE_MAX_SIZE_MB * 1024 * 1024 * 0.8; // evict to 80% of max
+  const targetSize = CACHE_MAX_SIZE_MB * 1024 * 1024 * 0.8;
 
   for (const file of files) {
     if (currentSize <= targetSize) break;
     try {
       fs.unlinkSync(file.path);
       currentSize -= file.size;
-    } catch (err) { console.warn('Cache eviction delete failed:', err.message); }
+    } catch (err) {
+      console.warn('Cache eviction delete failed:', err.message);
+    }
   }
 }
 

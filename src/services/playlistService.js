@@ -4,7 +4,6 @@ function listPlaylists() {
   const db = getDb();
   const playlists = db.prepare('SELECT * FROM playlists ORDER BY id').all();
 
-  // Attach sources for each playlist
   const getSourcesStmt = db.prepare(
     'SELECT source_id, sort_order FROM playlist_sources WHERE playlist_id = ? ORDER BY sort_order'
   );
@@ -62,7 +61,11 @@ function updatePlaylist(id, updates) {
 
 function deletePlaylist(id) {
   const db = getDb();
-  db.prepare('DELETE FROM playlists WHERE id = ?').run(id);
+  const transaction = db.transaction(() => {
+    db.prepare('DELETE FROM playlists WHERE id = ?').run(id);
+    db.prepare("UPDATE settings SET value = '' WHERE key = 'active_playlist_id' AND value = ?").run(String(id));
+  });
+  transaction();
 }
 
 function addSource(playlistId, sourceId, sortOrder = 0) {
@@ -87,20 +90,35 @@ function getPlaylistImages(playlistId) {
     `SELECT pi.image_id, pi.sort_order, ic.file_path, ic.file_name, ic.source_id
      FROM playlist_images pi
      JOIN image_cache ic ON ic.id = pi.image_id
-     WHERE pi.playlist_id = ?
+     WHERE pi.playlist_id = ? AND ic.is_available = 1
      ORDER BY pi.sort_order, ic.file_name`
   ).all(playlistId);
 }
 
 function setPlaylistImages(playlistId, imageIds) {
   const db = getDb();
+  const allowedSourceIds = db.prepare(
+    'SELECT source_id FROM playlist_sources WHERE playlist_id = ?'
+  ).all(playlistId).map(row => row.source_id);
+
+  const normalizedIds = Array.from(new Set((imageIds || []).map(id => parseInt(id, 10)).filter(Number.isInteger)));
+
+  let validIds = normalizedIds;
+  if (allowedSourceIds.length > 0 && normalizedIds.length > 0) {
+    const placeholders = normalizedIds.map(() => '?').join(',');
+    const sourcePlaceholders = allowedSourceIds.map(() => '?').join(',');
+    validIds = db.prepare(
+      `SELECT id FROM image_cache WHERE id IN (${placeholders}) AND source_id IN (${sourcePlaceholders}) AND is_available = 1`
+    ).all(...normalizedIds, ...allowedSourceIds).map(row => row.id);
+  }
+
   const transaction = db.transaction(() => {
     db.prepare('DELETE FROM playlist_images WHERE playlist_id = ?').run(playlistId);
     const insert = db.prepare(
       'INSERT INTO playlist_images (playlist_id, image_id, sort_order) VALUES (?, ?, ?)'
     );
-    for (let i = 0; i < imageIds.length; i++) {
-      insert.run(playlistId, imageIds[i], i);
+    for (let i = 0; i < validIds.length; i++) {
+      insert.run(playlistId, validIds[i], i);
     }
   });
   transaction();

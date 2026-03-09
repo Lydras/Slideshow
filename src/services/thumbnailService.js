@@ -8,7 +8,6 @@ const { getDb } = require('../db/connection');
 const dropboxService = require('./dropboxService');
 const plexService = require('./plexService');
 
-// Ensure thumbnail directory exists
 function ensureThumbnailDir() {
   if (!fs.existsSync(THUMBNAIL_DIR)) {
     fs.mkdirSync(THUMBNAIL_DIR, { recursive: true });
@@ -25,17 +24,16 @@ function getThumbnailPath(key) {
 
 async function getThumbnail(sourceId, imageId) {
   const db = getDb();
-
   const image = db.prepare('SELECT * FROM image_cache WHERE id = ? AND source_id = ?').get(imageId, sourceId);
   if (!image) return null;
 
   const source = getSource(sourceId);
   if (!source) return null;
 
-  const key = getThumbnailKey(sourceId, image.file_path);
+  const cacheKey = image.thumbnail_path || image.file_path;
+  const key = getThumbnailKey(sourceId, cacheKey);
   const thumbPath = getThumbnailPath(key);
 
-  // Return cached thumbnail if it exists
   if (fs.existsSync(thumbPath)) {
     return { path: thumbPath, contentType: 'image/jpeg' };
   }
@@ -43,17 +41,19 @@ async function getThumbnail(sourceId, imageId) {
   ensureThumbnailDir();
 
   if (source.type === 'local') {
-    return generateLocalThumbnail(source, image, thumbPath);
-  } else if (source.type === 'dropbox') {
+    return generateLocalThumbnail(image, thumbPath);
+  }
+  if (source.type === 'dropbox') {
     return generateDropboxThumbnail(source, image, thumbPath);
-  } else if (source.type === 'plex') {
+  }
+  if (source.type === 'plex') {
     return generatePlexThumbnail(source, image, thumbPath);
   }
 
   return null;
 }
 
-async function generateLocalThumbnail(source, image, thumbPath) {
+async function generateLocalThumbnail(image, thumbPath) {
   const fullPath = path.resolve(image.file_path);
   if (!fs.existsSync(fullPath)) return null;
 
@@ -77,7 +77,6 @@ async function generateDropboxThumbnail(source, image, thumbPath) {
       return { path: thumbPath, contentType: 'image/jpeg' };
     }
 
-    // Fallback: download full file and resize
     const buffer = await dropboxService.downloadFile(source.credential_id, image.file_path);
     await sharp(buffer)
       .resize(THUMBNAIL_SIZE, THUMBNAIL_SIZE, { fit: 'inside', withoutEnlargement: true })
@@ -91,21 +90,37 @@ async function generateDropboxThumbnail(source, image, thumbPath) {
 }
 
 async function generatePlexThumbnail(source, image, thumbPath) {
+  const thumbnailSource = image.thumbnail_path || image.file_path;
+
   try {
     const thumbData = await plexService.getThumbnail(
-      source.credential_id, source.plex_server_url, image.file_path
+      source.credential_id,
+      source.plex_server_url,
+      thumbnailSource
     );
+
     if (thumbData) {
-      // Resize to consistent thumbnail size
       await sharp(thumbData.buffer)
         .resize(THUMBNAIL_SIZE, THUMBNAIL_SIZE, { fit: 'inside', withoutEnlargement: true })
         .jpeg({ quality: THUMBNAIL_QUALITY })
         .toFile(thumbPath);
       return { path: thumbPath, contentType: 'image/jpeg' };
     }
-    return null;
+
+    // Backward compatibility for older scans that only stored a metadata key.
+    const fullImage = await plexService.downloadPhoto(
+      source.credential_id,
+      source.plex_server_url,
+      image.file_path
+    );
+
+    await sharp(fullImage.buffer)
+      .resize(THUMBNAIL_SIZE, THUMBNAIL_SIZE, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: THUMBNAIL_QUALITY })
+      .toFile(thumbPath);
+    return { path: thumbPath, contentType: 'image/jpeg' };
   } catch (err) {
-    console.error(`Plex thumbnail failed for ${image.file_path}:`, err.message);
+    console.error(`Plex thumbnail failed for ${thumbnailSource}:`, err.message);
     return null;
   }
 }

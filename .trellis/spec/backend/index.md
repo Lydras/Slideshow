@@ -1,12 +1,12 @@
 # Backend Development Guidelines
 
-> Best practices for backend development in this project.
+> Working conventions for the Slideshow server and services.
 
 ---
 
 ## Overview
 
-This directory contains guidelines for backend development. Fill in each file with your project's specific conventions.
+The backend is a small Express app with SQLite persistence through `better-sqlite3`. Business logic lives in service modules, routes stay thin, and migrations are incremental.
 
 ---
 
@@ -14,24 +14,21 @@ This directory contains guidelines for backend development. Fill in each file wi
 
 | Guide | Description | Status |
 |-------|-------------|--------|
-| [Directory Structure](./directory-structure.md) | Module organization and file layout | To fill |
-| [Database Guidelines](./database-guidelines.md) | ORM patterns, queries, migrations | To fill |
-| [Error Handling](./error-handling.md) | Error types, handling strategies | To fill |
-| [Quality Guidelines](./quality-guidelines.md) | Code standards, forbidden patterns | To fill |
-| [Logging Guidelines](./logging-guidelines.md) | Structured logging, log levels | To fill |
+| [Directory Structure](./directory-structure.md) | Module organization and file layout | Active |
+| [Database Guidelines](./database-guidelines.md) | SQLite access and migrations | Active |
+| [Error Handling](./error-handling.md) | Error propagation and route behavior | Active |
+| [Quality Guidelines](./quality-guidelines.md) | Code standards and testing expectations | Active |
+| [Logging Guidelines](./logging-guidelines.md) | Console logging and operational notes | Active |
 
 ---
 
-## How to Fill These Guidelines
+## Backend Rules of Thumb
 
-For each guideline file:
-
-1. Document your project's **actual conventions** (not ideals)
-2. Include **code examples** from your codebase
-3. List **forbidden patterns** and why
-4. Add **common mistakes** your team has made
-
-The goal is to help AI assistants and new team members understand how YOUR project works.
+- Keep routes responsible for parsing requests, validation, and response codes.
+- Put persistence and feature behavior in `services/`.
+- Prefer incremental migrations and compatibility over destructive schema resets.
+- Treat the app as self-hosted but still guard sensitive operations and credentials carefully.
+- When a workflow depends on persisted ids, preserve behavior across rescans or updates whenever file-path-based reconciliation is possible.
 
 ---
 

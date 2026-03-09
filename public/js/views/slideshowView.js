@@ -9,6 +9,7 @@ let timer = null;
 let hideControlsTimer = null;
 let settings = {};
 let container = null;
+let skippedCount = 0;
 
 export async function renderSlideshowView() {
   const viewContainer = $('#view');
@@ -23,30 +24,49 @@ export async function renderSlideshowView() {
 
   if (images.length === 0) {
     viewContainer.innerHTML = `
-      <div class="view-container">
-        <div class="empty-state">
-          <h2>No Images Found</h2>
-          <p>Add sources and scan them to populate the slideshow.</p>
-          <a href="#/sources" class="btn-primary" style="display:inline-block;margin-top:1rem;padding:0.5rem 1.5rem;">Go to Sources</a>
-        </div>
+      <div class="page-shell">
+        <section class="page-hero">
+          <div>
+            <p class="page-kicker">Display</p>
+            <div class="page-title-row">
+              <h1>Slideshow is ready when your library is</h1>
+              <span class="pill">No images yet</span>
+            </div>
+            <p class="page-subtitle">Add a source, run a scan, and activate a playlist if you want a specific collection to play by default.</p>
+          </div>
+          <div class="page-actions">
+            <a class="btn-primary" href="#/sources">Add sources</a>
+            <a class="btn-secondary" href="#/playlists">Review playlists</a>
+          </div>
+        </section>
       </div>
     `;
     return { destroy };
   }
 
-  const transitionDuration = (parseInt(settings.transition_duration_ms) || 500) / 1000;
+  const transitionDuration = (parseInt(settings.transition_duration_ms, 10) || 500) / 1000;
 
   viewContainer.innerHTML = `
     <div class="slideshow-container" style="--slide-transition-duration: ${transitionDuration}s">
       <img class="slideshow-image active" id="slide-current" src="" alt="">
       <img class="slideshow-image" id="slide-next" src="" alt="">
+      <div class="slideshow-topbar">
+        <div class="slideshow-topcard">
+          <div class="slideshow-kicker">Now playing</div>
+          <div class="slideshow-counter" id="slide-counter"></div>
+          <div class="slideshow-hint" id="slide-title"></div>
+        </div>
+        <div class="slideshow-topcard">
+          <div class="slideshow-kicker">Controls</div>
+          <div class="slideshow-hint">Space play/pause, arrows navigate, F fullscreen, Esc exit</div>
+        </div>
+      </div>
       <div class="slideshow-controls" id="slideshow-controls">
-        <button id="btn-prev" title="Previous (Left Arrow)">&#9664;</button>
-        <button id="btn-play" title="Play/Pause (Space)">&#9654;</button>
-        <button id="btn-next" title="Next (Right Arrow)">&#9654;</button>
-        <span class="slideshow-counter" id="slide-counter"></span>
-        <button id="btn-fullscreen" title="Fullscreen (F)">&#9974;</button>
-        <button id="btn-exit" title="Exit (Esc)">&#10005;</button>
+        <button id="btn-prev" title="Previous image">&#9664;</button>
+        <button id="btn-play" title="Play or pause slideshow">&#9654;</button>
+        <button id="btn-next" title="Next image">&#9654;</button>
+        <button id="btn-fullscreen" title="Toggle fullscreen">&#9974;</button>
+        <button id="btn-exit" title="Exit slideshow">&#10005;</button>
       </div>
       <div class="slideshow-progress" id="slide-progress"></div>
     </div>
@@ -56,25 +76,21 @@ export async function renderSlideshowView() {
   document.body.classList.add('slideshow-active');
 
   currentIndex = 0;
+  skippedCount = 0;
   showImage(currentIndex);
   preloadImages();
 
-  // Bind controls
   $('#btn-prev').addEventListener('click', prevImage);
   $('#btn-next').addEventListener('click', nextImage);
   $('#btn-play').addEventListener('click', togglePlay);
   $('#btn-fullscreen').addEventListener('click', () => toggleFullscreen(container));
   $('#btn-exit').addEventListener('click', exitSlideshow);
 
-  // Keyboard
   document.addEventListener('keydown', handleKeydown);
-
-  // Auto-hide controls
   container.addEventListener('mousemove', showControls);
   container.addEventListener('click', showControls);
   scheduleHideControls();
 
-  // Auto-start
   if (settings.fullscreen_on_start === 'true') {
     enterFullscreen(container).catch(() => {});
   }
@@ -89,20 +105,23 @@ function showImage(index) {
 
   const current = $('#slide-current');
   const next = $('#slide-next');
-
   currentIndex = ((index % images.length) + images.length) % images.length;
-  const img = images[currentIndex];
+  const image = images[currentIndex];
 
-  // Wait for the image to actually load before transitioning and starting the timer.
-  // This prevents the timer from running while a remote image is still downloading.
   const onReady = () => {
     updateCounter();
     if (playing) restartTimer();
   };
 
+  const onError = () => {
+    console.warn('Skipping image after load failure:', image.url);
+    removeFailedImage(currentIndex);
+  };
+
   if (settings.transition === 'none') {
     current.onload = onReady;
-    current.src = img.url;
+    current.onerror = onError;
+    current.src = image.url;
     current.className = 'slideshow-image active';
     next.className = 'slideshow-image';
   } else if (settings.transition === 'slide') {
@@ -115,13 +134,13 @@ function showImage(index) {
           current.src = next.src;
           current.className = 'slideshow-image active';
           next.className = 'slideshow-image';
-        }, (parseInt(settings.transition_duration_ms) || 500) + 50);
+        }, (parseInt(settings.transition_duration_ms, 10) || 500) + 50);
       });
       onReady();
     };
-    next.src = img.url;
+    next.onerror = onError;
+    next.src = image.url;
   } else {
-    // Fade (default)
     next.onload = () => {
       next.className = 'slideshow-image active';
       current.className = 'slideshow-image';
@@ -129,23 +148,46 @@ function showImage(index) {
         current.src = next.src;
         current.className = 'slideshow-image active';
         next.className = 'slideshow-image';
-      }, (parseInt(settings.transition_duration_ms) || 500) + 50);
+      }, (parseInt(settings.transition_duration_ms, 10) || 500) + 50);
       onReady();
     };
-    next.src = img.url;
+    next.onerror = onError;
+    next.src = image.url;
   }
 
   preloadImages();
 }
 
+function removeFailedImage(index) {
+  if (images.length === 0) {
+    stopPlaying();
+    updateCounter('No playable images remain.');
+    return;
+  }
+
+  const failedItems = images.splice(index, 1);
+  if (failedItems.length > 0) {
+    skippedCount += 1;
+  }
+
+  if (images.length === 0) {
+    stopPlaying();
+    updateCounter('No playable images remain.');
+    return;
+  }
+
+  if (currentIndex >= images.length) {
+    currentIndex = 0;
+  }
+
+  updateCounter('Skipped ' + skippedCount + ' unavailable image' + (skippedCount === 1 ? '' : 's'));
+  setTimeout(() => showImage(currentIndex), 300);
+}
 function preloadImages() {
-  // Preload next 5 images (warms both browser and server disk cache)
-  for (let i = 1; i <= 5; i++) {
+  for (let i = 1; i <= Math.min(5, images.length - 1); i++) {
     const idx = (currentIndex + i) % images.length;
-    if (images[idx]) {
-      const img = new Image();
-      img.src = images[idx].url;
-    }
+    const preload = new Image();
+    preload.src = images[idx].url;
   }
 }
 
@@ -172,6 +214,7 @@ function stopPlaying() {
   updatePlayButton();
   clearInterval(timer);
   timer = null;
+  resetProgress();
 }
 
 function togglePlay() {
@@ -180,7 +223,7 @@ function togglePlay() {
 
 function restartTimer() {
   clearInterval(timer);
-  const interval = (parseInt(settings.interval_seconds) || 8) * 1000;
+  const interval = (parseInt(settings.interval_seconds, 10) || 8) * 1000;
   timer = setInterval(() => nextImage(), interval);
   resetProgress();
 }
@@ -188,7 +231,8 @@ function restartTimer() {
 function resetProgress() {
   const progress = $('#slide-progress');
   if (!progress) return;
-  const interval = (parseInt(settings.interval_seconds) || 8) * 1000;
+
+  const interval = (parseInt(settings.interval_seconds, 10) || 8) * 1000;
   progress.style.transition = 'none';
   progress.style.width = '0%';
   if (playing) {
@@ -199,17 +243,21 @@ function resetProgress() {
   }
 }
 
-function updateCounter() {
+function updateCounter(customMessage = null) {
   const counter = $('#slide-counter');
+  const title = $('#slide-title');
   if (counter) {
-    counter.textContent = `${currentIndex + 1} / ${images.length}`;
+    counter.textContent = customMessage || `${currentIndex + 1} of ${images.length}`;
+  }
+  if (title && !customMessage) {
+    title.textContent = images[currentIndex]?.file_name || 'Current image';
   }
 }
 
 function updatePlayButton() {
   const btn = $('#btn-play');
   if (btn) {
-    btn.innerHTML = playing ? '&#9646;&#9646;' : '&#9654;';
+    btn.innerHTML = playing ? '&#10074;&#10074;' : '&#9654;';
   }
 }
 
@@ -224,14 +272,15 @@ function scheduleHideControls() {
   hideControlsTimer = setTimeout(() => {
     const controls = $('#slideshow-controls');
     if (controls && playing) controls.classList.add('hidden-controls');
-  }, 3000);
+  }, 2400);
 }
 
-function handleKeydown(e) {
+function handleKeydown(event) {
   if (!container) return;
-  switch (e.key) {
+
+  switch (event.key) {
     case ' ':
-      e.preventDefault();
+      event.preventDefault();
       togglePlay();
       break;
     case 'ArrowRight':
@@ -248,6 +297,7 @@ function handleKeydown(e) {
       exitSlideshow();
       break;
   }
+
   showControls();
 }
 

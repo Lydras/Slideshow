@@ -1,3 +1,5 @@
+import { navigateTo } from './utils/router.js';
+
 const BASE_URL = '/api';
 
 function getAuthToken() {
@@ -34,6 +36,17 @@ async function request(path, options = {}) {
 
   if (!response.ok) {
     const message = data?.error?.message || `Request failed (${response.status})`;
+
+    if (response.status === 401) {
+      setAuthToken(null);
+      if (window.location.hash !== '#/login') {
+        navigateTo('#/login');
+      }
+      const error = new Error('Your admin session has expired. Please log in again.');
+      error.status = response.status;
+      throw error;
+    }
+
     const error = new Error(message);
     error.status = response.status;
     throw error;
