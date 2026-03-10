@@ -131,7 +131,7 @@ router.get('/serve/plex/:sourceId/:imageId', async (req, res, next) => {
       return res.status(404).json({ error: { message: 'Image not found' } });
     }
 
-    const cacheKey = image.thumbnail_path || image.file_path || ('plex:' + image.id);
+    const cacheKey = 'plex-playback:' + (image.file_path || image.thumbnail_path || image.id);
     const cached = getFromCache(sourceId, cacheKey);
     if (cached) {
       res.set('Cache-Control', 'public, max-age=3600');

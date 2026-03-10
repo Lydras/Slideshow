@@ -181,7 +181,7 @@ describe('plex service', () => {
     expect(Buffer.isBuffer(result.buffer)).toBe(true);
   });
 
-  test('slideshow playback prefers the thumbnail path transcode when available', async () => {
+  test('slideshow playback prefers the full Plex image before thumbnail fallback', async () => {
     harness = createHarness();
     const credentialId = harness.credentialService.storeCredential('plex', 'Plex: Living Room', {
       token: 'plex-token',
@@ -190,8 +190,8 @@ describe('plex service', () => {
 
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
-      headers: { get: () => 'image/jpeg' },
-      arrayBuffer: async () => Buffer.from('jpeg-bytes'),
+      headers: { get: () => 'image/png' },
+      arrayBuffer: async () => Buffer.from('png-bytes'),
     });
 
     const plexService = require('../../src/services/plexService');
@@ -202,6 +202,50 @@ describe('plex service', () => {
 
     expect(global.fetch).toHaveBeenCalledTimes(1);
     expect(global.fetch).toHaveBeenCalledWith(
+      'http://plex.local:32400/library/parts/218667/1758290447/file.png?download=1',
+      expect.objectContaining({
+        headers: expect.objectContaining({ 'X-Plex-Token': 'plex-token', 'X-Plex-Client-Identifier': 'slideshow-app' }),
+      })
+    );
+    expect(result.contentType).toBe('image/png');
+    expect(Buffer.isBuffer(result.buffer)).toBe(true);
+  });
+
+
+  test('slideshow playback falls back to thumbnail path when the full image fails', async () => {
+    harness = createHarness();
+    const credentialId = harness.credentialService.storeCredential('plex', 'Plex: Living Room', {
+      token: 'plex-token',
+      server_url: 'http://plex.local:32400',
+    });
+
+    global.fetch = jest.fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        statusText: 'Not Found',
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: { get: () => 'image/jpeg' },
+        arrayBuffer: async () => Buffer.from('jpeg-bytes'),
+      });
+
+    const plexService = require('../../src/services/plexService');
+    const result = await plexService.downloadBestPhoto(credentialId, 'http://plex.local:32400', {
+      file_path: '/library/parts/218667/1758290447/file.png',
+      thumbnail_path: '/library/metadata/999/thumb/123',
+    });
+
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      1,
+      'http://plex.local:32400/library/parts/218667/1758290447/file.png?download=1',
+      expect.objectContaining({
+        headers: expect.objectContaining({ 'X-Plex-Token': 'plex-token', 'X-Plex-Client-Identifier': 'slideshow-app' }),
+      })
+    );
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      2,
       'http://plex.local:32400/library/metadata/999/thumb/123',
       expect.objectContaining({
         headers: expect.objectContaining({ 'X-Plex-Token': 'plex-token', 'X-Plex-Client-Identifier': 'slideshow-app' }),
@@ -211,7 +255,7 @@ describe('plex service', () => {
     expect(Buffer.isBuffer(result.buffer)).toBe(true);
   });
 
-  test('metadata keys resolve to a real thumb path before transcode playback', async () => {
+  test('metadata fallback resolves to a real thumb path after full image failure', async () => {
     harness = createHarness();
     const credentialId = harness.credentialService.storeCredential('plex', 'Plex: Living Room', {
       token: 'plex-token',
@@ -219,6 +263,11 @@ describe('plex service', () => {
     });
 
     global.fetch = jest.fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        statusText: 'Not Found',
+      })
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({
@@ -244,11 +293,18 @@ describe('plex service', () => {
       thumbnail_path: '/library/metadata/215954',
     });
 
-    expect(global.fetch).toHaveBeenNthCalledWith(1, 'http://plex.local:32400/library/metadata/215954', expect.objectContaining({
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      1,
+      'http://plex.local:32400/library/parts/218667/1758290447/file.png?download=1',
+      expect.objectContaining({
+        headers: expect.objectContaining({ 'X-Plex-Token': 'plex-token', 'X-Plex-Client-Identifier': 'slideshow-app' }),
+      })
+    );
+    expect(global.fetch).toHaveBeenNthCalledWith(2, 'http://plex.local:32400/library/metadata/215954', expect.objectContaining({
       headers: expect.objectContaining({ 'X-Plex-Token': 'plex-token', 'X-Plex-Client-Identifier': 'slideshow-app' }),
     }));
     expect(global.fetch).toHaveBeenNthCalledWith(
-      2,
+      3,
       'http://plex.local:32400/library/metadata/215954/thumb/998877',
       expect.objectContaining({
         headers: expect.objectContaining({ 'X-Plex-Token': 'plex-token', 'X-Plex-Client-Identifier': 'slideshow-app' }),

@@ -399,13 +399,21 @@ async function downloadTranscodedPhoto(credentialId, serverUrl, photoKey, dimens
 }
 
 async function downloadBestPhoto(credentialId, serverUrl, image) {
-  const transcodedSource = image?.thumbnail_path || image?.file_path;
-
-  if (transcodedSource) {
+  const fullImageSource = image?.file_path;
+  if (fullImageSource) {
     try {
-      return await downloadTranscodedPhoto(credentialId, serverUrl, transcodedSource);
+      return await downloadPhoto(credentialId, serverUrl, fullImageSource);
     } catch (err) {
-      console.error(`Plex transcoded photo failed for ${transcodedSource}:`, err.message);
+      console.error(`Plex full image failed for ${fullImageSource}:`, err.message);
+    }
+  }
+
+  const fallbackSource = image?.thumbnail_path;
+  if (fallbackSource) {
+    try {
+      return await downloadTranscodedPhoto(credentialId, serverUrl, fallbackSource);
+    } catch (err) {
+      console.error(`Plex fallback image failed for ${fallbackSource}:`, err.message);
     }
   }
 
