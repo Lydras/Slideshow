@@ -64,6 +64,8 @@ function runMigrations() {
 
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_image_cache_selected ON image_cache(source_id, selected);
+    CREATE INDEX IF NOT EXISTS idx_image_cache_review_status ON image_cache(review_status);
+    CREATE INDEX IF NOT EXISTS idx_image_cache_favorite ON image_cache(favorite);
 
     CREATE TABLE IF NOT EXISTS playlist_images (
       playlist_id INTEGER NOT NULL,
@@ -100,6 +102,18 @@ function runIncrementalMigrations(db) {
 
   if (!columnNames.has('is_available')) {
     db.exec('ALTER TABLE image_cache ADD COLUMN is_available INTEGER NOT NULL DEFAULT 1');
+  }
+
+  if (!columnNames.has('review_status')) {
+    db.exec("ALTER TABLE image_cache ADD COLUMN review_status TEXT NOT NULL DEFAULT 'pending'");
+  }
+
+  if (!columnNames.has('favorite')) {
+    db.exec('ALTER TABLE image_cache ADD COLUMN favorite INTEGER NOT NULL DEFAULT 0');
+  }
+
+  if (!columnNames.has('reviewed_at')) {
+    db.exec('ALTER TABLE image_cache ADD COLUMN reviewed_at TEXT');
   }
 }
 

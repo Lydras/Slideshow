@@ -4,6 +4,7 @@ import { renderSlideshowView } from './views/slideshowView.js';
 import { renderSettingsView } from './views/settingsView.js';
 import { renderSourcesView } from './views/sourcesView.js';
 import { renderPlaylistsView } from './views/playlistsView.js';
+import { renderReviewQueueView } from './views/reviewQueueView.js';
 import { renderLoginView } from './views/loginView.js';
 import { api } from './api.js';
 
@@ -23,6 +24,7 @@ function withAuth(viewFn) {
 
 registerRoute('#/slideshow', renderSlideshowView);
 registerRoute('#/login', renderLoginView);
+registerRoute('#/review-queue', withAuth(renderReviewQueueView));
 registerRoute('#/settings', withAuth(renderSettingsView));
 registerRoute('#/sources', withAuth(renderSourcesView));
 registerRoute('#/playlists', withAuth(renderPlaylistsView));

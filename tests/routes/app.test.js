@@ -31,6 +31,44 @@ describe('API behavior', () => {
     expect(lockedRes.status).toBe(401);
   });
 
+  test('review queue is auth-protected', async () => {
+    harness = createHarness();
+    const agent = request(harness.app);
+
+    await agent.post('/api/auth/password').send({ password: 'secret123' });
+
+    const response = await agent.get('/api/review-queue');
+
+    expect(response.status).toBe(401);
+    expect(response.body.error.message).toBe('Authentication required');
+  });
+
+  test('review queue returns pending items for selected mode after auth', async () => {
+    harness = createHarness();
+    const agent = request(harness.app);
+    const { getDb } = require('../../src/db/connection');
+    const db = getDb();
+
+    const source = harness.sourceService.createSource({
+      name: 'Local Photos',
+      type: 'local',
+      path: path.join(harness.dataDir, 'photos'),
+      include_subfolders: 1,
+    });
+
+    db.prepare("INSERT INTO image_cache (source_id, file_path, file_name, selected, thumbnail_path, is_available, review_status, favorite, reviewed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").run(source.id, path.join(harness.dataDir, 'photos', 'pending.jpg'), 'pending.jpg', 1, null, 1, 'pending', 0, null);
+
+    const passwordRes = await agent.post('/api/auth/password').send({ password: 'secret123' });
+    const token = passwordRes.body.token;
+
+    const response = await agent
+      .get('/api/review-queue?mode=unreviewed')
+      .set('Authorization', 'Bearer ' + token);
+
+    expect(response.status).toBe(200);
+    expect(response.body.items).toHaveLength(1);
+    expect(response.body.items[0].file_name).toBe('pending.jpg');
+  });
   test('deleting the active playlist clears the setting', async () => {
     harness = createHarness();
     const agent = request(harness.app);
@@ -110,3 +148,5 @@ describe('API behavior', () => {
     expect(response.body[0].file_name).toBe('a.jpg');
   });
 });
+
+

@@ -106,4 +106,34 @@ describe('source scanning', () => {
     expect(images[0].file_path).toBe('/library/parts/218493/1758290441/file.png');
     expect(images[0].thumbnail_path).toBe('/library/metadata/999/thumb/123');
   });
+  test('rescanning preserves review state and favorite flags by file path', async () => {
+    harness = createHarness();
+
+    const photoDir = path.join(harness.dataDir, 'photos');
+    fs.mkdirSync(photoDir, { recursive: true });
+    fs.writeFileSync(path.join(photoDir, 'a.jpg'), 'a');
+
+    const source = harness.sourceService.createSource({
+      name: 'Local Photos',
+      type: 'local',
+      path: photoDir,
+      include_subfolders: 1,
+    });
+
+    await harness.sourceService.scanSource(source.id);
+    const [image] = harness.sourceService.getSourceImages(source.id);
+    const { getDb } = require('../../src/db/connection');
+    const db = getDb();
+
+    db.prepare("UPDATE image_cache SET review_status = 'approved', favorite = 1, reviewed_at = datetime('now') WHERE id = ?").run(image.id);
+
+    await harness.sourceService.scanSource(source.id);
+    const [rescanned] = harness.sourceService.getSourceImages(source.id);
+
+    expect(rescanned.review_status).toBe('approved');
+    expect(rescanned.favorite).toBe(1);
+    expect(rescanned.reviewed_at).toBeTruthy();
+  });
 });
+
+

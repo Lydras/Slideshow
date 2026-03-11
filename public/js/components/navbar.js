@@ -6,6 +6,7 @@ export function renderNavbar() {
 
   const links = [
     { hash: '#/slideshow', label: 'Slideshow', icon: '&#9654;' },
+    { hash: '#/review-queue', label: 'Review Queue', icon: '&#11088;' },
     { hash: '#/sources', label: 'Sources', icon: '&#128193;' },
     { hash: '#/playlists', label: 'Playlists', icon: '&#9776;' },
     { hash: '#/settings', label: 'Settings', icon: '&#9881;' },

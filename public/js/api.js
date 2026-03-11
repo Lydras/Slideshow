@@ -19,7 +19,7 @@ async function request(path, options = {}) {
   const headers = { 'Content-Type': 'application/json' };
   const token = getAuthToken();
   if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
+    headers.Authorization = `Bearer ${token}`;
   }
 
   const config = {
@@ -60,23 +60,23 @@ export { setAuthToken, getAuthToken };
 export const api = {
   // Auth
   getAuthStatus: () => request('/auth/status'),
-  login: (password) => request('/auth/login', { method: 'POST', body: { password } }),
+  login: password => request('/auth/login', { method: 'POST', body: { password } }),
   logout: () => request('/auth/logout', { method: 'POST' }),
   setPassword: (password, currentPassword) =>
     request('/auth/password', { method: 'POST', body: { password, current_password: currentPassword } }),
 
   // Settings
   getSettings: () => request('/settings'),
-  updateSettings: (settings) => request('/settings', { method: 'PUT', body: settings }),
+  updateSettings: settings => request('/settings', { method: 'PUT', body: settings }),
 
   // Sources
   getSources: () => request('/sources'),
-  getSource: (id) => request(`/sources/${id}`),
-  createSource: (data) => request('/sources', { method: 'POST', body: data }),
+  getSource: id => request(`/sources/${id}`),
+  createSource: data => request('/sources', { method: 'POST', body: data }),
   updateSource: (id, data) => request(`/sources/${id}`, { method: 'PUT', body: data }),
-  deleteSource: (id) => request(`/sources/${id}`, { method: 'DELETE' }),
-  scanSource: (id) => request(`/sources/${id}/scan`, { method: 'POST' }),
-  getSourceImages: (id) => request(`/sources/${id}/images`),
+  deleteSource: id => request(`/sources/${id}`, { method: 'DELETE' }),
+  scanSource: id => request(`/sources/${id}/scan`, { method: 'POST' }),
+  getSourceImages: id => request(`/sources/${id}/images`),
 
   // Source image selection
   updateBulkImageSelection: (sourceId, selected, imageIds) =>
@@ -84,35 +84,40 @@ export const api = {
       method: 'PUT',
       body: { selected, image_ids: imageIds },
     }),
-  getSourceImageCounts: (sourceId) => request(`/sources/${sourceId}/images/counts`),
+  getSourceImageCounts: sourceId => request(`/sources/${sourceId}/images/counts`),
 
   // Thumbnails
   getThumbnailUrl: (sourceId, imageId) => `${BASE_URL}/images/thumbnail/${sourceId}/${imageId}`,
 
   // Playlists
   getPlaylists: () => request('/playlists'),
-  getPlaylist: (id) => request(`/playlists/${id}`),
-  createPlaylist: (data) => request('/playlists', { method: 'POST', body: data }),
+  getPlaylist: id => request(`/playlists/${id}`),
+  createPlaylist: data => request('/playlists', { method: 'POST', body: data }),
   updatePlaylist: (id, data) => request(`/playlists/${id}`, { method: 'PUT', body: data }),
-  deletePlaylist: (id) => request(`/playlists/${id}`, { method: 'DELETE' }),
+  deletePlaylist: id => request(`/playlists/${id}`, { method: 'DELETE' }),
   addPlaylistSource: (playlistId, sourceId, sortOrder) =>
     request(`/playlists/${playlistId}/sources`, { method: 'POST', body: { source_id: sourceId, sort_order: sortOrder } }),
   removePlaylistSource: (playlistId, sourceId) =>
     request(`/playlists/${playlistId}/sources`, { method: 'DELETE', body: { source_id: sourceId } }),
 
   // Playlist image selection
-  getPlaylistImages: (playlistId) => request(`/playlists/${playlistId}/images`),
+  getPlaylistImages: playlistId => request(`/playlists/${playlistId}/images`),
   setPlaylistImages: (playlistId, imageIds) =>
     request(`/playlists/${playlistId}/images`, { method: 'PUT', body: { image_ids: imageIds } }),
-  clearPlaylistImages: (playlistId) =>
+  clearPlaylistImages: playlistId =>
     request(`/playlists/${playlistId}/images`, { method: 'DELETE' }),
 
+  // Review queue
+  getReviewQueue: (mode = 'newly-scanned') => request(`/review-queue?mode=${encodeURIComponent(mode)}`),
+  applyReviewAction: (imageId, action) =>
+    request(`/review-queue/${imageId}/action`, { method: 'POST', body: { action } }),
+
   // Images
-  getImages: (playlistId) => request(`/images${playlistId ? `?playlist_id=${playlistId}` : ''}`),
+  getImages: playlistId => request(`/images${playlistId ? `?playlist_id=${playlistId}` : ''}`),
 
   // Credentials
   getCredentials: () => request('/credentials'),
-  deleteCredential: (id) => request(`/credentials/${id}`, { method: 'DELETE' }),
+  deleteCredential: id => request(`/credentials/${id}`, { method: 'DELETE' }),
 
   // Dropbox
   getDropboxAuthUrl: (appKey, appSecret) =>
@@ -128,8 +133,8 @@ export const api = {
   },
 
   // Plex
-  connectPlex: (data) => request('/plex/connect', { method: 'POST', body: data }),
-  getPlexServerInfo: (credentialId) => request(`/plex/${credentialId}/info`),
+  connectPlex: data => request('/plex/connect', { method: 'POST', body: data }),
+  getPlexServerInfo: credentialId => request(`/plex/${credentialId}/info`),
   getPlexLibraries: (credentialId, serverUrl) => {
     const params = serverUrl ? `?server_url=${encodeURIComponent(serverUrl)}` : '';
     return request(`/plex/${credentialId}/libraries${params}`);

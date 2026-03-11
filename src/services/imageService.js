@@ -70,16 +70,23 @@ function getEffectivePlaylistId(explicitPlaylistId) {
   return null;
 }
 
+function weightImages(images) {
+  return images.flatMap(image => {
+    const weight = image.favorite === 1 ? 2 : 1;
+    return Array.from({ length: weight }, () => ({
+      id: image.id,
+      source_id: image.source_id,
+      file_name: image.file_name,
+      url: buildImageUrl(image),
+    }));
+  });
+}
+
 function getSlideshowImages(playlistId) {
   const settings = getAllSettings();
   let images = getImagesForPlaylist(getEffectivePlaylistId(playlistId));
 
-  images = images.map(img => ({
-    id: img.id,
-    source_id: img.source_id,
-    file_name: img.file_name,
-    url: buildImageUrl(img),
-  }));
+  images = weightImages(images);
 
   if (settings.order === 'random') {
     images = shuffleArray(images);

@@ -13,9 +13,11 @@ router.use('/credentials', require('./credentials'));
 router.use('/sources', require('./sources'));
 router.use('/playlists', require('./playlists'));
 router.use('/images', require('./images'));
+router.use('/review-queue', require('./reviewQueue'));
 router.use('/browse', require('./browse'));
 router.use('/cache', require('./cache'));
 router.use('/dropbox', require('./dropbox'));
 router.use('/plex', require('./plex'));
 
 module.exports = router;
+

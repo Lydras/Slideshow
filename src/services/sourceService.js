@@ -55,12 +55,19 @@ function deleteSource(id) {
 function getSelectionState(sourceId) {
   const db = getDb();
   const existingImages = db.prepare(
-    'SELECT id, file_path, selected FROM image_cache WHERE source_id = ?'
+    `SELECT id, file_path, selected, review_status, favorite, reviewed_at
+     FROM image_cache
+     WHERE source_id = ?`
   ).all(sourceId);
 
-  const selectionMap = new Map();
+  const imageStateByPath = new Map();
   for (const img of existingImages) {
-    selectionMap.set(img.file_path, img.selected);
+    imageStateByPath.set(img.file_path, {
+      selected: img.selected,
+      review_status: img.review_status || 'pending',
+      favorite: img.favorite || 0,
+      reviewed_at: img.reviewed_at || null,
+    });
   }
 
   const playlistSelections = db.prepare(
@@ -79,7 +86,7 @@ function getSelectionState(sourceId) {
     playlistSelectionMap.get(row.playlist_id).push({ file_path: row.file_path, sort_order: row.sort_order });
   }
 
-  return { selectionMap, playlistSelectionMap };
+  return { imageStateByPath, playlistSelectionMap };
 }
 
 async function scanSource(id) {
@@ -87,7 +94,7 @@ async function scanSource(id) {
   const source = getSource(id);
   if (!source) return null;
 
-  const { selectionMap, playlistSelectionMap } = getSelectionState(id);
+  const { imageStateByPath, playlistSelectionMap } = getSelectionState(id);
 
   let images = [];
 
@@ -106,7 +113,10 @@ async function scanSource(id) {
   }
 
   const insertImage = db.prepare(
-    'INSERT INTO image_cache (source_id, file_path, file_name, selected, thumbnail_path, is_available) VALUES (?, ?, ?, ?, ?, ?)'
+    `INSERT INTO image_cache (
+      source_id, file_path, file_name, selected, thumbnail_path, is_available,
+      review_status, favorite, reviewed_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
   );
   const insertPlaylistImage = db.prepare(
     'INSERT INTO playlist_images (playlist_id, image_id, sort_order) VALUES (?, ?, ?)'
@@ -117,8 +127,18 @@ async function scanSource(id) {
 
     const insertedByPath = new Map();
     for (const img of images) {
-      const selected = selectionMap.has(img.file_path) ? selectionMap.get(img.file_path) : 1;
-      const result = insertImage.run(id, img.file_path, img.file_name, selected, img.thumbnail_path || null, 1);
+      const existingState = imageStateByPath.get(img.file_path);
+      const result = insertImage.run(
+        id,
+        img.file_path,
+        img.file_name,
+        existingState ? existingState.selected : 1,
+        img.thumbnail_path || null,
+        1,
+        existingState ? existingState.review_status : 'pending',
+        existingState ? existingState.favorite : 0,
+        existingState ? existingState.reviewed_at : null
+      );
       insertedByPath.set(img.file_path, result.lastInsertRowid);
     }
 
@@ -153,13 +173,29 @@ function updateImageSelection(sourceId, imageIds, selected) {
   if (!imageIds || imageIds.length === 0) {
     db.prepare('UPDATE image_cache SET selected = ? WHERE source_id = ?').run(selected, sourceId);
   } else {
-    const normalizedIds = Array.from(new Set(imageIds.map(id => parseInt(id, 10)).filter(Number.isInteger)));
+    const normalizedIds = Array.from(new Set(imageIds.map(id => parseInt(id, 10)).filter(id => Number.isInteger(id))));
     if (normalizedIds.length === 0) return;
     const placeholders = normalizedIds.map(() => '?').join(',');
     db.prepare(
       `UPDATE image_cache SET selected = ? WHERE source_id = ? AND id IN (${placeholders})`
     ).run(selected, sourceId, ...normalizedIds);
   }
+}
+
+function updateImageReviewState(imageId, { review_status, favorite, reviewed_at }) {
+  const db = getDb();
+  db.prepare(
+    `UPDATE image_cache
+     SET review_status = ?,
+         favorite = ?,
+         reviewed_at = ?,
+         selected = CASE
+           WHEN ? = 'approved' THEN 1
+           WHEN ? = 'hidden' THEN 0
+           ELSE selected
+         END
+     WHERE id = ?`
+  ).run(review_status, favorite, reviewed_at, review_status, review_status, imageId);
 }
 
 function getSourceImageCounts(sourceId) {
@@ -179,5 +215,6 @@ module.exports = {
   getSourceImages,
   markImageUnavailable,
   updateImageSelection,
+  updateImageReviewState,
   getSourceImageCounts,
 };
