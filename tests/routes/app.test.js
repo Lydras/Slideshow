@@ -12,6 +12,18 @@ describe('API behavior', () => {
     }
   });
 
+  test('plain HTTP responses do not advertise HTTPS-only asset upgrades', async () => {
+    harness = createHarness();
+    const agent = request(harness.app);
+
+    const response = await agent.get('/');
+
+    expect(response.status).toBe(200);
+    expect(response.headers['content-security-policy']).not.toMatch(/upgrade-insecure-requests/i);
+    expect(response.headers['cross-origin-opener-policy']).toBeUndefined();
+    expect(response.headers['origin-agent-cluster']).toBeUndefined();
+  });
+
   test('settings and slideshow images remain public when auth is enabled', async () => {
     harness = createHarness();
     const agent = request(harness.app);
@@ -69,6 +81,7 @@ describe('API behavior', () => {
     expect(response.body.items).toHaveLength(1);
     expect(response.body.items[0].file_name).toBe('pending.jpg');
   });
+
   test('deleting the active playlist clears the setting', async () => {
     harness = createHarness();
     const agent = request(harness.app);
@@ -148,5 +161,3 @@ describe('API behavior', () => {
     expect(response.body[0].file_name).toBe('a.jpg');
   });
 });
-
-

@@ -6,8 +6,12 @@ const {
   AUTH_RATE_LIMIT_MAX,
 } = require('../config/constants');
 
+const enforceHttps = process.env.FORCE_HTTPS === 'true';
+
 const helmetMiddleware = helmet({
   crossOriginEmbedderPolicy: false,
+  crossOriginOpenerPolicy: enforceHttps,
+  originAgentCluster: enforceHttps,
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
@@ -15,6 +19,7 @@ const helmetMiddleware = helmet({
       styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", 'data:', 'blob:'],
       connectSrc: ["'self'"],
+      upgradeInsecureRequests: enforceHttps ? [] : null,
     },
   },
 });
